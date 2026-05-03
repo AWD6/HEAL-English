@@ -1,97 +1,247 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HEAL English - AI Communication</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+  <title>HEAL English</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
+<div class="app-bg">
 <div class="app-container">
-  <header>
-    <div class="logo-wrapper">
-      <div class="logo-icon"><i class="fas fa-stethoscope"></i></div>
-      <h1>HEAL English</h1>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-icon-wrap">
+      <div class="header-icon">
+        <i class="fas fa-stethoscope"></i>
+      </div>
+      <div class="ai-badge">AI</div>
     </div>
-    <p class="subtitle">AI-assisted Basic English Communication<br>for Healthcare Provider</p>
+    <h1>HEAL English</h1>
+    <p class="header-subtitle">Healthcare English with AI Learning</p>
+    <div class="lang-badges">
+      <span class="lang-badge th">🇹🇭 ไทย</span>
+      <span class="dot">·</span>
+      <span class="lang-badge en">🇬🇧 English</span>
+      <span class="dot">·</span>
+      <span class="lang-badge zh">🇨🇳 中文</span>
+    </div>
   </header>
 
-  <section class="card">
-    <div class="card-header">
-      <h3><i class="fas fa-layer-group"></i> Select Scenario</h3>
-      <span class="hint-text">เลือกสถานการณ์ที่ต้องการฝึกฝน</span>
-    </div>
-    <div class="category-grid">
-      <button class="btn-cat active" onclick="loadScenario('greeting')">
-        <span class="en-text">Greeting</span>
-        <span class="th-text">การทักทาย</span>
-      </button>
-      <button class="btn-cat" onclick="loadScenario('registration')">
-        <span class="en-text">Registration</span>
-        <span class="th-text">การลงทะเบียน</span>
-      </button>
-      <button class="btn-cat" onclick="loadScenario('direction')">
-        <span class="en-text">Direction</span>
-        <span class="th-text">การบอกทาง</span>
-      </button>
-      <button class="btn-cat" onclick="loadScenario('care')">
-        <span class="en-text">During Care</span>
-        <span class="th-text">ขณะรับบริการ</span>
-      </button>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="card-header">
-      <h3><i class="fas fa-volume-up"></i> Quick Phrases</h3>
-      <span class="hint-text">แตะที่ไอคอนลำโพงเพื่อฟังการออกเสียงที่ถูกต้อง</span>
-    </div>
-    <div id="phraseList" class="phrase-container">
-      </div>
-  </section>
-
-  <section class="card practice-zone">
-    <div class="card-header center">
-      <h3><i class="fas fa-microphone-alt"></i> Speaking Practice</h3>
-      <span class="hint-text">กดปุ่มไมค์ด้านล่าง แล้วลองพูดประโยคภาษาอังกฤษดูนะคะ</span>
-    </div>
-    
-    <div class="recognition-box">
-      <div id="speechResult" class="result-text placeholder-text">Waiting for your voice... (รอฟังเสียงของคุณ)</div>
-      <div id="feedback" class="feedback"></div>
-    </div>
-    
-    <button id="micBtn" class="btn-record" onclick="toggleSpeaking()">
-      <div class="pulse-ring"></div>
-      <i class="fas fa-microphone"></i> <span id="micText">Tap to Speak (กดเพื่อพูด)</span>
-    </button>
-  </section>
-
-  <section class="card chat-section">
-    <div class="card-header">
-      <h3><i class="fas fa-robot"></i> AI Role Play</h3>
-      <span class="hint-text">จำลองการคุยกับผู้ป่วยต่างชาติ พิมพ์ตอบโต้ได้เลย</span>
-    </div>
-    
-    <div id="chatBox" class="chat-box">
-      <div class="msg ai">
-        <div class="msg-bubble">Hello! I'm your patient. How can I help you today?</div>
-        <div class="msg-hint">สวัสดีค่ะ ฉันคือคนไข้ของคุณ วันนี้มีอะไรให้ฉันช่วยไหมคะ?</div>
+  <!-- Scenario Selector -->
+  <section class="card scenario-card">
+    <div class="card-top">
+      <div>
+        <div class="card-title">เลือกสถานการณ์</div>
+        <div class="card-sub">Select a scenario to practice</div>
       </div>
     </div>
-        <div class="chat-input-area">
-      <button id="chatMicBtn" class="btn-mic-chat" onclick="toggleChatMic()" title="กดเพื่อพูดแทนพิมพ์">
+    <div class="scenario-grid" id="scenarioGrid"></div>
+  </section>
+
+  <!-- Tab Navigation -->
+  <section class="card tab-card">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="phrases" onclick="switchTab('phrases', this)">
+        <i class="fas fa-book-open"></i>
+        <span class="tab-label-en">Phrases</span>
+        <span class="tab-label-th">ประโยค</span>
+      </button>
+      <button class="tab-btn" data-tab="practice" onclick="switchTab('practice', this)">
         <i class="fas fa-microphone"></i>
+        <span class="tab-label-en">Practice</span>
+        <span class="tab-label-th">ฝึกพูด</span>
       </button>
-      
-      <input type="text" id="userInput" placeholder="พิมพ์หรือพูดภาษาไทย / English..." onkeypress="handleEnter(event)">
-      
-      <button class="btn-send" onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
+      <button class="tab-btn" data-tab="chat" onclick="switchTab('chat', this)">
+        <i class="fas fa-comments"></i>
+        <span class="tab-label-en">Role Play</span>
+        <span class="tab-label-th">สนทนา</span>
+      </button>
+      <button class="tab-btn" data-tab="translate" onclick="switchTab('translate', this)">
+        <i class="fas fa-language"></i>
+        <span class="tab-label-en">Translate</span>
+        <span class="tab-label-th">แปลภาษา</span>
+      </button>
     </div>
 
-<script src="script.js"></script>
+    <!-- Phrases Panel -->
+    <div class="tab-panel active" id="panel-phrases">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title" id="phraseTitle">👋 Greeting Phrases</div>
+          <div class="panel-sub" id="phraseCount">4 ประโยค · แตะ ▼ เพื่อดูคำอธิบาย</div>
+        </div>
+        <button class="btn-add" onclick="openAddModal()">
+          <i class="fas fa-plus"></i> เพิ่ม
+        </button>
+      </div>
+      <div id="phraseList" class="phrase-list"></div>
+      <div class="tip-box" id="phraseTip">
+        <div class="tip-title">ต้องการฝึกพูด?</div>
+        <div class="tip-sub">เลือกประโยคแล้วกด ฝึกพูด เพื่อทดสอบการออกเสียง</div>
+        <button class="tip-link" onclick="goToPractice()">ไปที่หน้าฝึกพูด <i class="fas fa-chevron-right"></i></button>
+      </div>
+    </div>
+
+    <!-- Practice Panel -->
+    <div class="tab-panel" id="panel-practice">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Speaking Practice</div>
+          <div class="panel-sub">ฝึกออกเสียงภาษาอังกฤษ · AI จะวัดความแม่นยำให้</div>
+        </div>
+      </div>
+      <div class="phrase-chips" id="practiceChips"></div>
+      <div class="target-box" id="targetBox" style="display:none">
+        <div class="target-label">ลองพูดประโยคนี้:</div>
+        <div class="target-text" id="targetText"></div>
+      </div>
+      <div class="recognition-box" id="recBox">
+        <div class="rec-placeholder" id="recPlaceholder">กดปุ่มไมค์แล้วพูดประโยคภาษาอังกฤษ</div>
+        <div class="listening-anim" id="listeningAnim" style="display:none">
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div>
+          <span class="listening-text">กำลังฟัง...</span>
+        </div>
+        <div class="rec-result" id="recResult" style="display:none"></div>
+      </div>
+      <div class="score-box" id="scoreBox" style="display:none">
+        <div class="score-row">
+          <span class="score-msg" id="scoreMsg"></span>
+          <span class="score-num" id="scoreNum"></span>
+        </div>
+        <div class="score-bar-bg">
+          <div class="score-bar-fill" id="scoreBarFill"></div>
+        </div>
+      </div>
+      <button class="btn-record" id="recBtn" onclick="toggleRecording()">
+        <i class="fas fa-microphone" id="recIcon"></i>
+        <span id="recBtnText">กดเพื่อพูด (Tap to Speak)</span>
+      </button>
+    </div>
+
+    <!-- Chat Panel -->
+    <div class="tab-panel" id="panel-chat">
+      <div class="panel-header">
+        <div class="panel-title-row">
+          <div class="mini-avatar"><i class="fas fa-robot"></i></div>
+          <div>
+            <div class="panel-title">AI Role Play</div>
+            <div class="panel-sub">สนทนากับ AI ที่จำลองเป็นผู้ป่วยต่างชาติ</div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-box" id="chatBox">
+        <div class="msg ai">
+          <div class="msg-avatar"><i class="fas fa-robot"></i></div>
+          <div class="msg-content">
+            <div class="msg-bubble">Hello! I'm your patient. How can I help you today?</div>
+            <div class="msg-hint">สวัสดีค่ะ ฉันคือคนไข้ของคุณ วันนี้มีอะไรให้ช่วยไหมคะ?</div>
+            <button class="msg-listen" onclick="speakText('Hello! I\'m your patient. How can I help you today?', 'en')">▶ ฟัง</button>
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-area">
+        <button class="btn-mic-chat" id="chatMicBtn" onclick="toggleChatMic()" title="กดเพื่อพูด">
+          <i class="fas fa-microphone"></i>
+        </button>
+        <input type="text" id="chatInput" placeholder="พิมพ์หรือพูดภาษาไทย / English..." onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="btn-chat-send" onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
+      </div>
+    </div>
+
+    <!-- Translate Panel -->
+    <div class="tab-panel" id="panel-translate">
+      <div class="panel-header">
+        <div class="panel-title-row">
+          <div class="mini-avatar"><i class="fas fa-language"></i></div>
+          <div>
+            <div class="panel-title">Google Translate</div>
+            <div class="panel-sub">แปลภาษาไทย · อังกฤษ · จีน ทันที</div>
+          </div>
+        </div>
+      </div>
+      <div class="translate-lang-row">
+        <select class="lang-select" id="fromLang">
+          <option value="th">🇹🇭 ไทย</option>
+          <option value="en">🇬🇧 English</option>
+          <option value="zh-CN">🇨🇳 中文</option>
+        </select>
+        <button class="btn-swap" onclick="swapLangs()" title="สลับภาษา">
+          <i class="fas fa-right-left"></i>
+        </button>
+        <select class="lang-select" id="toLang">
+          <option value="en">🇬🇧 English</option>
+          <option value="th">🇹🇭 ไทย</option>
+          <option value="zh-CN">🇨🇳 中文</option>
+        </select>
+      </div>
+      <div class="translate-input-wrap">
+        <textarea id="translateInput" class="translate-input" rows="3" placeholder="พิมพ์ข้อความที่ต้องการแปล... / Type text to translate..." oninput="onTranslateInput()"></textarea>
+        <button class="translate-speak-btn" id="inputSpeakBtn" onclick="speakTranslateInput()" style="display:none" title="ฟังเสียง"><i class="fas fa-volume-up"></i></button>
+      </div>
+      <div class="translate-output-wrap" id="translateOutput">
+        <p class="translate-placeholder">คำแปลจะปรากฏที่นี่...</p>
+      </div>
+      <div class="translate-credit"><i class="fas fa-globe"></i> Powered by Google Translate</div>
+
+      <!-- Quick phrases from scenario -->
+      <div class="quick-phrases-wrap" id="quickPhrases"></div>
+    </div>
+  </section>
+
+  <div class="app-footer">HEAL English · สำหรับบุคลากรทางการแพทย์</div>
+</div>
+</div>
+
+<!-- Add Phrase Modal -->
+<div class="modal-overlay" id="addModal" onclick="if(event.target===this)closeAddModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">เพิ่มประโยคใหม่</div>
+        <div class="modal-sub">Add New Phrase / 添加新短语</div>
+      </div>
+      <button class="modal-close" onclick="closeAddModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group">
+        <label class="field-label"><span class="badge-lang en">EN</span> English <span class="required">*</span></label>
+        <input type="text" id="f-en" class="field-input" placeholder="e.g. Are you feeling better?">
+        <div class="field-error" id="err-en"></div>
+      </div>
+      <div class="field-group">
+        <label class="field-label"><span class="badge-lang th">TH</span> ภาษาไทย <span class="required">*</span></label>
+        <input type="text" id="f-th" class="field-input" placeholder="เช่น รู้สึกดีขึ้นไหมคะ?">
+        <div class="field-error" id="err-th"></div>
+      </div>
+      <div class="field-group">
+        <label class="field-label"><span class="badge-lang zh">中</span> 中文 <span class="required">*</span></label>
+        <input type="text" id="f-zh" class="field-input" placeholder="例如：您感觉好些了吗？">
+        <div class="field-error" id="err-zh"></div>
+      </div>
+      <div class="field-group">
+        <label class="field-label"><span class="badge-ctx">?</span> ใช้ในสถานการณ์ไหน (ไทย)</label>
+        <input type="text" id="f-ctx-th" class="field-input" placeholder="เช่น ใช้เมื่อตรวจสอบอาการหลังรักษา">
+      </div>
+      <div class="field-group">
+        <label class="field-label"><span class="badge-ctx">!</span> When to use (English)</label>
+        <input type="text" id="f-ctx-en" class="field-input" placeholder="e.g. Use after treatment to check patient's condition">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeAddModal()">ยกเลิก</button>
+      <button class="btn-confirm" onclick="submitAddPhrase()"><i class="fas fa-plus"></i> เพิ่มประโยค</button>
+    </div>
+  </div>
+</div>
+
+<script src="/script.js"></script>
 </body>
 </html>
