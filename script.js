@@ -186,7 +186,6 @@ function confirmDelete(id) {
   const btn = document.getElementById(`del-${id}`);
   if (!btn) return;
   if (pendingDelete[id]) {
-    // Execute delete
     clearTimeout(pendingDelete[id]);
     delete pendingDelete[id];
     const s = currentScenario();
@@ -196,7 +195,6 @@ function confirmDelete(id) {
     renderPracticeChips();
     renderQuickPhrases();
   } else {
-    // First click — show confirm state
     btn.classList.add('red-solid');
     btn.classList.remove('red');
     btn.innerHTML = 'ยืนยัน';
@@ -261,7 +259,7 @@ function setErr(errId, inputId, msg) {
 function renderPracticeChips() {
   const s = currentScenario();
   const wrap = document.getElementById('practiceChips');
-  wrap.innerHTML = s.phrases.slice(0, 5).map((p, i) =>
+  wrap.innerHTML = s.phrases.slice(0, 5).map(p =>
     `<button class="chip ${practiceTarget === p.en ? 'active' : ''}"
              onclick="selectPracticeTarget('${escAttr(p.en)}')"
              title="${escAttr(p.en)}">
@@ -351,10 +349,10 @@ function showScore(spokenText) {
   box.className = 'score-box';
 
   let cls, msg;
-  if (score >= 90)     { cls = 'good'; msg = '✨ ยอดเยี่ยมมากค่ะ!'; }
-  else if (score >= 75) { cls = 'ok';  msg = '👍 ดีมากค่ะ ลองฝึกอีกนิดนะคะ'; }
-  else if (score >= 60) { cls = 'meh'; msg = '💪 ฝึกอีกหน่อยนะคะ'; }
-  else                  { cls = 'bad'; msg = '🎤 ลองพูดใหม่อีกครั้งนะคะ'; }
+  if (score >= 90)      { cls = 'good'; msg = '✨ ยอดเยี่ยมมากค่ะ!'; }
+  else if (score >= 75) { cls = 'ok';   msg = '👍 ดีมากค่ะ ลองฝึกอีกนิดนะคะ'; }
+  else if (score >= 60) { cls = 'meh';  msg = '💪 ฝึกอีกหน่อยนะคะ'; }
+  else                  { cls = 'bad';  msg = '🎤 ลองพูดใหม่อีกครั้งนะคะ'; }
 
   box.classList.add(cls);
   document.getElementById('scoreMsg').textContent = msg;
@@ -375,14 +373,14 @@ function calcScore(spoken, target) {
 
 // ── Chat ──────────────────────────────────────────────────────
 const aiReplies = [
-  { t: /สวัสดี|hello|hi\b/i, en:"Hello! I feel a bit dizzy today.", th:"สวัสดีค่ะ วันนี้ฉันรู้สึกเวียนหัวนิดหน่อยค่ะ" },
-  { t: /ชื่อ|name/i,          en:"My name is Emily. I'm a tourist from Australia.", th:"ฉันชื่อเอมิลี่ เป็นนักท่องเที่ยวจากออสเตรเลียค่ะ" },
-  { t: /ปวด|pain|เจ็บ|hurt/i, en:"It hurts right here on my lower abdomen.", th:"เจ็บตรงท้องน้อยข้างนี้ค่ะ" },
-  { t: /ทาง|where|ห้องน้ำ|restroom|toilet/i, en:"Could you show me the way to the restroom?", th:"ช่วยบอกทางไปห้องน้ำหน่อยได้ไหมคะ?" },
-  { t: /แพ้|allergy|allergic/i, en:"I'm allergic to penicillin and shellfish.", th:"ฉันแพ้ยาเพนิซิลินและอาหารทะเลมีเปลือกค่ะ" },
-  { t: /นัด|appointment/i,     en:"Yes, I have an appointment with Dr. Smith at 10 AM.", th:"ใช่ค่ะ ฉันนัดกับคุณหมอสมิธตอน 10 โมงเช้าค่ะ" },
-  { t: /ยา|medicine|drug/i,    en:"I'm currently taking blood pressure medication.", th:"ตอนนี้ฉันทานยาความดันอยู่ค่ะ" },
-  { t: /ดี|better|okay|fine/i, en:"I feel a little better now, thank you so much!", th:"รู้สึกดีขึ้นนิดหน่อยแล้วค่ะ ขอบคุณมากเลยค่ะ" },
+  { t: /สวัสดี|hello|hi\b/i,                        en:"Hello! I feel a bit dizzy today.",                          th:"สวัสดีค่ะ วันนี้ฉันรู้สึกเวียนหัวนิดหน่อยค่ะ" },
+  { t: /ชื่อ|name/i,                                 en:"My name is Emily. I'm a tourist from Australia.",           th:"ฉันชื่อเอมิลี่ เป็นนักท่องเที่ยวจากออสเตรเลียค่ะ" },
+  { t: /ปวด|pain|เจ็บ|hurt/i,                        en:"It hurts right here on my lower abdomen.",                  th:"เจ็บตรงท้องน้อยข้างนี้ค่ะ" },
+  { t: /ทาง|where|ห้องน้ำ|restroom|toilet/i,         en:"Could you show me the way to the restroom?",               th:"ช่วยบอกทางไปห้องน้ำหน่อยได้ไหมคะ?" },
+  { t: /แพ้|allergy|allergic/i,                      en:"I'm allergic to penicillin and shellfish.",                 th:"ฉันแพ้ยาเพนิซิลินและอาหารทะเลมีเปลือกค่ะ" },
+  { t: /นัด|appointment/i,                           en:"Yes, I have an appointment with Dr. Smith at 10 AM.",       th:"ใช่ค่ะ ฉันนัดกับคุณหมอสมิธตอน 10 โมงเช้าค่ะ" },
+  { t: /ยา|medicine|drug/i,                          en:"I'm currently taking blood pressure medication.",            th:"ตอนนี้ฉันทานยาความดันอยู่ค่ะ" },
+  { t: /ดี|better|okay|fine/i,                       en:"I feel a little better now, thank you so much!",            th:"รู้สึกดีขึ้นนิดหน่อยแล้วค่ะ ขอบคุณมากเลยค่ะ" },
 ];
 
 function getAIReply(text) {
