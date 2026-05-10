@@ -8,402 +8,23 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <style>
-:root {
-  --primary: #0d9488;
-  --primary-dark: #0f766e;
-  --primary-light: #ccfbf1;
-  --primary-mid: #14b8a6;
-  --bg: #f0fdf9;
-  --card-bg: rgba(255,255,255,0.88);
-  --text: #1e293b;
-  --text-sub: #64748b;
-  --text-hint: #94a3b8;
-  --border: #e2e8f0;
-  --shadow-card: 0 4px 20px rgba(13,148,136,0.09);
-  --shadow-hover: 0 8px 24px rgba(13,148,136,0.18);
-  --shadow-btn: 0 4px 14px rgba(13,148,136,0.32);
-  --gradient: linear-gradient(135deg, #0d9488 0%, #14b8a6 60%, #2dd4bf 100%);
-  --gradient-dark: linear-gradient(135deg, #0f766e 0%, #0d9488 50%, #14b8a6 100%);
-  --radius-sm: 12px;
-  --radius: 18px;
-  --radius-lg: 24px;
-  --radius-xl: 28px;
-}
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  font-family: 'Prompt', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  line-height: 1.5;
-  min-height: 100vh;
-}
-
-.app-bg {
-  min-height: 100vh;
-  background: linear-gradient(160deg, #f0fdf9 0%, #e6f8f5 40%, #f0f9ff 100%);
-  display: flex;
-  justify-content: center;
-  padding-bottom: 40px;
-}
-
-.app-container {
-  width: 100%;
-  max-width: 520px;
-  padding: 0 16px;
-}
-
-/* Header */
-.app-header { text-align: center; padding: 36px 0 24px; }
-
-.header-icon-wrap { position: relative; display: inline-block; margin-bottom: 16px; }
-
-.header-icon {
-  width: 68px; height: 68px; border-radius: 22px;
-  background: var(--gradient-dark);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 28px; color: #fff;
-  box-shadow: 0 8px 28px rgba(13,148,136,0.38);
-}
-
-.ai-badge {
-  position: absolute; top: -4px; right: -4px;
-  width: 22px; height: 22px; border-radius: 50%;
-  background: var(--primary-mid); border: 2px solid #fff;
-  color: #fff; font-size: 9px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-}
-
-.app-header h1 { font-size: 26px; font-weight: 700; color: var(--primary-dark); letter-spacing: -0.5px; }
-.header-subtitle { font-size: 13px; color: var(--primary); font-weight: 500; margin-top: 4px; }
-
-.lang-badges { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; }
-.lang-badge { padding: 3px 10px; border-radius: 50px; font-size: 12px; font-weight: 600; }
-.lang-badge.th { background: #fee2e2; color: #b91c1c; }
-.lang-badge.en { background: #dbeafe; color: #1d4ed8; }
-.lang-badge.zh { background: #fef3c7; color: #b45309; }
-.dot { color: #cbd5e1; font-size: 14px; }
-
-/* Cards */
-.card {
-  background: var(--card-bg); backdrop-filter: blur(14px);
-  border-radius: var(--radius-xl); border: 1px solid rgba(255,255,255,0.65);
-  box-shadow: var(--shadow-card); margin-bottom: 16px; overflow: hidden;
-}
-
-.card-top { display: flex; align-items: center; justify-content: space-between; padding: 20px 20px 16px; }
-.card-title { font-size: 14px; font-weight: 600; color: var(--text); }
-.card-sub { font-size: 12px; color: var(--text-hint); margin-top: 2px; }
-
-/* Scenario Grid */
-.scenario-card .card-top { padding-bottom: 14px; }
-.scenario-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 16px 20px; }
-
-.btn-scenario {
-  background: #fff; border: 1.5px solid var(--border); border-radius: var(--radius);
-  padding: 14px 10px; cursor: pointer;
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  transition: all 0.2s ease; position: relative; text-align: center;
-}
-.btn-scenario .s-icon { font-size: 26px; }
-.btn-scenario .s-en { font-size: 14px; font-weight: 600; color: var(--text); }
-.btn-scenario .s-th { font-size: 11px; color: var(--text-hint); font-weight: 300; }
-.btn-scenario:hover { border-color: var(--primary-light); background: #f0fdf9; transform: translateY(-2px); box-shadow: var(--shadow-hover); }
-.btn-scenario.active { background: var(--gradient); border-color: transparent; box-shadow: 0 5px 18px rgba(13,148,136,0.32); }
-.btn-scenario.active .s-en, .btn-scenario.active .s-th { color: #fff; }
-.active-dot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.7); }
-
-/* Tabs */
-.tab-card { padding: 0; }
-.tabs { display: flex; border-bottom: 1.5px solid #f1f5f9; }
-.tab-btn {
-  flex: 1; padding: 14px 4px 12px; background: none; border: none; cursor: pointer;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  font-family: 'Prompt', sans-serif; font-size: 11px; color: var(--text-hint);
-  transition: color 0.2s; position: relative;
-}
-.tab-btn i { font-size: 17px; }
-.tab-btn .tab-label-en { display: none; }
-.tab-btn .tab-label-th { display: block; }
-@media (min-width: 400px) {
-  .tab-btn .tab-label-en { display: block; }
-  .tab-btn .tab-label-th { display: none; }
-}
-.tab-btn.active { color: var(--primary-dark); }
-.tab-btn.active::after {
-  content: ''; position: absolute; bottom: -1px; left: 20%; right: 20%;
-  height: 2.5px; border-radius: 3px; background: var(--gradient);
-}
-
-/* Tab Panels */
-.tab-panel { display: none; padding: 20px; }
-.tab-panel.active { display: block; }
-
-.panel-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; gap: 10px; }
-.panel-title { font-size: 15px; font-weight: 600; color: var(--text); }
-.panel-sub { font-size: 12px; color: var(--text-hint); margin-top: 2px; }
-.panel-title-row { display: flex; align-items: center; gap: 10px; }
-.mini-avatar {
-  width: 28px; height: 28px; border-radius: 50%; background: var(--gradient);
-  color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0;
-}
-
-/* Add Button */
-.btn-add {
-  display: flex; align-items: center; gap: 6px; padding: 8px 14px;
-  border-radius: 50px; background: var(--gradient); color: #fff; border: none;
-  font-family: 'Prompt', sans-serif; font-size: 13px; font-weight: 600;
-  cursor: pointer; white-space: nowrap; box-shadow: var(--shadow-btn); transition: opacity 0.2s; flex-shrink: 0;
-}
-.btn-add:hover { opacity: 0.88; }
-
-/* Phrase List */
-.phrase-list { display: flex; flex-direction: column; gap: 10px; }
-
-.phrase-card {
-  background: #fff; border: 1px solid #f1f5f9; border-radius: var(--radius);
-  overflow: hidden; box-shadow: 0 2px 8px rgba(13,148,136,0.06);
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
-}
-.phrase-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(13,148,136,0.12); }
-
-.phrase-main { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 14px 14px 12px; }
-.phrase-texts { flex: 1; min-width: 0; }
-.phrase-row { display: flex; align-items: baseline; gap: 7px; margin-bottom: 5px; }
-.phrase-row:last-child { margin-bottom: 0; }
-
-.badge-mini {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 18px; border-radius: 5px; font-size: 10px; font-weight: 700; flex-shrink: 0;
-}
-.badge-mini.en { background: #dbeafe; color: #1d4ed8; }
-.badge-mini.th { background: #fee2e2; color: #b91c1c; }
-.badge-mini.zh { background: #fef3c7; color: #b45309; }
-
-.phrase-en-text { font-size: 14px; font-weight: 600; color: var(--text); }
-.phrase-th-text { font-size: 12px; color: var(--text-sub); }
-.phrase-zh-text { font-size: 12px; color: var(--text-sub); }
-
-.phrase-actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
-
-.btn-icon {
-  width: 32px; height: 32px; border-radius: 10px; border: none; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 13px; transition: all 0.18s ease; font-family: 'Prompt', sans-serif; font-weight: 700;
-}
-.btn-icon.blue { background: #dbeafe; color: #2563eb; }
-.btn-icon.blue:hover { background: #2563eb; color: #fff; }
-.btn-icon.yellow { background: #fef3c7; color: #b45309; }
-.btn-icon.yellow:hover { background: #d97706; color: #fff; }
-.btn-icon.red { background: #fee2e2; color: #dc2626; }
-.btn-icon.red:hover { background: #dc2626; color: #fff; }
-.btn-icon.red-solid { background: #dc2626; color: #fff; font-size: 11px; width: auto; padding: 0 8px; border-radius: 8px; }
-
-.phrase-context-toggle {
-  width: 100%; padding: 8px 14px; background: #f8fafc; border: none;
-  border-top: 1px solid #f1f5f9; cursor: pointer;
-  display: flex; align-items: center; justify-content: space-between;
-  font-family: 'Prompt', sans-serif; font-size: 11px; color: var(--text-hint);
-  transition: background 0.2s, color 0.2s;
-}
-.phrase-context-toggle:hover { background: #f0fdf9; color: var(--primary); }
-.phrase-context-body { display: none; padding: 12px 14px; background: #f0fdf9; border-top: 1px solid #ccfbf1; }
-.phrase-context-body.open { display: block; }
-.ctx-line { font-size: 12px; color: var(--primary-dark); line-height: 1.6; margin-bottom: 4px; }
-.ctx-line:last-child { margin-bottom: 0; }
-.ctx-line strong { font-weight: 600; }
-
-/* Tip box */
-.tip-box { margin-top: 16px; background: linear-gradient(135deg,#f0fdf9,#e6f8f5); border: 1px solid #99f6e4; border-radius: var(--radius-sm); padding: 12px 14px; }
-.tip-title { font-size: 12px; font-weight: 600; color: var(--primary-dark); }
-.tip-sub { font-size: 11px; color: var(--primary); margin-top: 2px; }
-.tip-link { margin-top: 8px; background: none; border: none; font-family: 'Prompt', sans-serif; font-size: 12px; font-weight: 600; color: var(--primary-dark); cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 0; }
-.tip-link:hover { color: var(--primary); }
-
-/* Empty state */
-.empty-state { text-align: center; padding: 32px 16px; }
-.empty-icon { width: 60px; height: 60px; border-radius: 50%; background: #f0fdf9; display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 12px; }
-.empty-text { font-size: 13px; color: var(--text-hint); margin-bottom: 14px; }
-.btn-empty-add { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 50px; background: var(--gradient); color: #fff; border: none; font-family: 'Prompt', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: var(--shadow-btn); }
-
-/* Practice Panel */
-.phrase-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
-.chip { padding: 6px 12px; border-radius: 50px; border: 1.5px solid var(--border); background: #fff; font-family: 'Prompt', sans-serif; font-size: 12px; color: var(--text-sub); cursor: pointer; transition: all 0.18s; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chip:hover { border-color: var(--primary); color: var(--primary); }
-.chip.active { background: var(--gradient); color: #fff; border-color: transparent; }
-
-.target-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px; }
-.target-label { font-size: 11px; color: #3b82f6; font-weight: 600; margin-bottom: 4px; }
-.target-text { font-size: 14px; font-weight: 600; color: #1e40af; }
-
-.recognition-box {
-  background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: var(--radius);
-  padding: 20px 16px; min-height: 80px; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; text-align: center;
-  margin-bottom: 14px; transition: border-color 0.3s, background 0.3s;
-}
-.recognition-box.listening { border-color: var(--primary); background: #f0fdf9; }
-.rec-placeholder { font-size: 13px; color: var(--text-hint); font-style: italic; }
-.rec-result { font-size: 14px; font-weight: 600; color: var(--text); }
-
-.listening-anim { display: flex; align-items: flex-end; gap: 4px; height: 32px; }
-.listening-anim .bar { width: 4px; border-radius: 3px; background: var(--primary); animation: bar-bounce 0.8s ease-in-out infinite; }
-.listening-anim .bar:nth-child(1) { animation-delay: 0s; height: 12px; }
-.listening-anim .bar:nth-child(2) { animation-delay: 0.12s; height: 22px; }
-.listening-anim .bar:nth-child(3) { animation-delay: 0.24s; height: 30px; }
-.listening-anim .bar:nth-child(4) { animation-delay: 0.12s; height: 22px; }
-.listening-anim .bar:nth-child(5) { animation-delay: 0s; height: 12px; }
-@keyframes bar-bounce { 0%,100% { transform: scaleY(0.5); } 50% { transform: scaleY(1.1); } }
-.listening-text { font-size: 12px; color: var(--primary); font-weight: 500; margin-left: 8px; }
-
-.score-box { background: #fff; border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 14px; }
-.score-box.good { background: #f0fdf4; border-color: #bbf7d0; }
-.score-box.ok   { background: #eff6ff; border-color: #bfdbfe; }
-.score-box.meh  { background: #fffbeb; border-color: #fde68a; }
-.score-box.bad  { background: #fef2f2; border-color: #fecaca; }
-.score-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.score-msg { font-size: 13px; font-weight: 600; }
-.score-num { font-size: 15px; font-weight: 700; }
-.score-box.good .score-msg, .score-box.good .score-num { color: #16a34a; }
-.score-box.ok   .score-msg, .score-box.ok   .score-num { color: #2563eb; }
-.score-box.meh  .score-msg, .score-box.meh  .score-num { color: #d97706; }
-.score-box.bad  .score-msg, .score-box.bad  .score-num { color: #dc2626; }
-.score-bar-bg { height: 6px; border-radius: 3px; background: rgba(0,0,0,0.08); overflow: hidden; }
-.score-bar-fill { height: 100%; border-radius: 3px; background: var(--gradient); transition: width 0.7s cubic-bezier(.4,0,.2,1); }
-.score-box.ok  .score-bar-fill { background: linear-gradient(90deg,#3b82f6,#60a5fa); }
-.score-box.meh .score-bar-fill { background: linear-gradient(90deg,#f59e0b,#fbbf24); }
-.score-box.bad .score-bar-fill { background: linear-gradient(90deg,#ef4444,#f87171); }
-
-.btn-record {
-  width: 100%; padding: 15px; border-radius: var(--radius); border: none;
-  background: var(--gradient); color: #fff; font-family: 'Prompt', sans-serif;
-  font-size: 14px; font-weight: 600; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  box-shadow: var(--shadow-btn); transition: all 0.2s;
-  animation: pulse-teal 2.5s infinite;
-}
-.btn-record:hover { opacity: 0.9; }
-.btn-record.recording { background: linear-gradient(135deg,#dc2626,#ef4444); box-shadow: 0 4px 14px rgba(220,38,38,0.32); animation: pulse-red 1.5s infinite; }
-@keyframes pulse-teal { 0%,100% { box-shadow: 0 4px 14px rgba(13,148,136,0.32); } 50% { box-shadow: 0 4px 24px rgba(13,148,136,0.5); } }
-@keyframes pulse-red  { 0%,100% { box-shadow: 0 4px 14px rgba(220,38,38,0.32); } 50% { box-shadow: 0 4px 24px rgba(220,38,38,0.52); } }
-
-/* Chat Panel */
-.chat-box { max-height: 290px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px; margin-bottom: 14px; scroll-behavior: smooth; }
-.chat-box::-webkit-scrollbar { width: 3px; }
-.chat-box::-webkit-scrollbar-thumb { background: #ccfbf1; border-radius: 4px; }
-
-.msg { display: flex; align-items: flex-start; gap: 8px; }
-.msg.user { flex-direction: row-reverse; }
-.msg-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--gradient); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; margin-top: 2px; }
-.msg-user-avatar { width: 30px; height: 30px; border-radius: 50%; background: #e2e8f0; color: #64748b; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; margin-top: 2px; }
-.msg-content { display: flex; flex-direction: column; max-width: 78%; }
-.msg.user .msg-content { align-items: flex-end; }
-
-.msg-bubble { padding: 11px 15px; border-radius: 18px; font-size: 13.5px; line-height: 1.45; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-.msg.ai .msg-bubble { background: #fff; color: var(--text); border-bottom-left-radius: 5px; border: 1px solid #f1f5f9; }
-.msg.user .msg-bubble { background: var(--gradient); color: #fff; border-bottom-right-radius: 5px; }
-.msg-hint { font-size: 11px; color: var(--text-hint); margin-top: 4px; padding: 0 2px; }
-.msg-listen { margin-top: 4px; background: none; border: none; font-family: 'Prompt', sans-serif; font-size: 11px; color: var(--primary); cursor: pointer; padding: 0 2px; }
-.msg-listen:hover { color: var(--primary-dark); }
-
-.typing-dots { display: flex; gap: 4px; align-items: center; padding: 10px 15px; background: #fff; border-radius: 18px; border-bottom-left-radius: 5px; border: 1px solid #f1f5f9; }
-.typing-dots span { width: 7px; height: 7px; background: var(--primary-mid); border-radius: 50%; animation: typing 1s infinite; }
-.typing-dots span:nth-child(2) { animation-delay: 0.18s; }
-.typing-dots span:nth-child(3) { animation-delay: 0.36s; }
-@keyframes typing { 0%,80%,100% { transform: scale(0.75); opacity: 0.5; } 40% { transform: scale(1); opacity: 1; } }
-
-.chat-input-area { display: flex; align-items: center; gap: 8px; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 50px; padding: 6px 6px 6px 8px; }
-.chat-input-area input { flex: 1; border: none; background: transparent; outline: none; font-family: 'Prompt', sans-serif; font-size: 13px; color: var(--text); padding: 6px 4px; }
-.chat-input-area input::placeholder { color: #cbd5e1; }
-.btn-mic-chat { width: 36px; height: 36px; border-radius: 50%; border: none; background: #e6f8f5; color: var(--primary); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
-.btn-mic-chat:hover { background: #ccfbf1; }
-.btn-mic-chat.recording { background: #ef4444; color: #fff; animation: pulse-red 1.5s infinite; }
-.btn-chat-send { width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--gradient); color: #fff; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 10px rgba(13,148,136,0.28); transition: opacity 0.2s; flex-shrink: 0; }
-.btn-chat-send:hover { opacity: 0.88; }
-
-/* Translate Panel */
-.translate-lang-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.lang-select { flex: 1; padding: 10px 12px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: #fff; font-family: 'Prompt', sans-serif; font-size: 13px; color: var(--text); outline: none; cursor: pointer; transition: border-color 0.2s; }
-.lang-select:focus { border-color: var(--primary); }
-.btn-swap { width: 40px; height: 40px; border-radius: var(--radius-sm); border: none; background: var(--gradient); color: #fff; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: var(--shadow-btn); transition: opacity 0.2s; }
-.btn-swap:hover { opacity: 0.88; }
-
-.translate-input-wrap { position: relative; margin-bottom: 10px; }
-.translate-input { width: 100%; padding: 12px 44px 12px 14px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: #f8fafc; font-family: 'Prompt', sans-serif; font-size: 13px; color: var(--text); outline: none; resize: none; transition: border-color 0.2s; }
-.translate-input:focus { border-color: var(--primary); }
-.translate-input::placeholder { color: #cbd5e1; }
-.translate-speak-btn { position: absolute; right: 10px; bottom: 10px; width: 30px; height: 30px; border-radius: 8px; border: none; background: #e6f8f5; color: var(--primary); font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
-.translate-speak-btn:hover { background: #ccfbf1; }
-
-.translate-output-wrap { background: linear-gradient(135deg,#f0fdf9,#e6f8f5); border: 1.5px solid #99f6e4; border-radius: var(--radius-sm); padding: 14px; min-height: 80px; position: relative; margin-bottom: 8px; }
-.translate-placeholder { font-size: 13px; color: var(--text-hint); font-style: italic; }
-.translate-result { font-size: 14px; color: var(--text); line-height: 1.6; padding-right: 72px; }
-.translate-loading { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--primary); }
-.translate-spinner { width: 16px; height: 16px; border: 2px solid #99f6e4; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.translate-out-actions { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 5px; }
-.btn-out-action { width: 30px; height: 30px; border-radius: 8px; border: none; background: #ccfbf1; color: var(--primary-dark); font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
-.btn-out-action:hover { background: var(--primary); color: #fff; }
-.translate-credit { text-align: center; font-size: 11px; color: var(--text-hint); margin-bottom: 16px; display: flex; align-items: center; justify-content: center; gap: 5px; }
-
-.quick-phrases-wrap { margin-top: 4px; }
-.quick-label { font-size: 11px; font-weight: 700; color: var(--text-hint); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
-.quick-phrase-item { background: #fff; border: 1px solid #f1f5f9; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
-.quick-phrase-item .q-en { font-size: 13.5px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-.quick-phrase-item .q-th { font-size: 11.5px; color: var(--text-sub); }
-.quick-phrase-item .q-zh { font-size: 11.5px; color: var(--text-sub); margin-top: 2px; }
-
-/* Modal */
-.modal-overlay { position: fixed; inset: 0; background: rgba(15,118,110,0.18); backdrop-filter: blur(6px); z-index: 100; display: none; align-items: flex-end; justify-content: center; padding: 16px; }
-.modal-overlay.open { display: flex; align-items: flex-end; }
-@media (min-width: 480px) { .modal-overlay.open { align-items: center; } }
-
-.modal { width: 100%; max-width: 480px; background: #fff; border-radius: 28px 28px 20px 20px; overflow: hidden; box-shadow: 0 24px 64px rgba(13,148,136,0.22); animation: slide-up 0.28s cubic-bezier(0.4,0,0.2,1); }
-@media (min-width: 480px) { .modal { border-radius: 28px; animation: none; } }
-@keyframes slide-up { from { transform: translateY(60px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-
-.modal-header { padding: 20px 20px 18px; background: var(--gradient); display: flex; align-items: flex-start; justify-content: space-between; }
-.modal-title { font-size: 17px; font-weight: 700; color: #fff; }
-.modal-sub { font-size: 12px; color: rgba(255,255,255,0.8); margin-top: 3px; }
-.modal-close { width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(255,255,255,0.22); color: #fff; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
-.modal-close:hover { background: rgba(255,255,255,0.35); }
-.modal-body { padding: 18px 20px 4px; max-height: 58vh; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
-.field-group { display: flex; flex-direction: column; gap: 5px; }
-.field-label { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; color: var(--text-sub); }
-.required { color: #ef4444; }
-.badge-lang, .badge-ctx { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 20px; border-radius: 6px; font-size: 11px; font-weight: 700; }
-.badge-lang.en { background: #dbeafe; color: #1d4ed8; }
-.badge-lang.th { background: #fee2e2; color: #b91c1c; }
-.badge-lang.zh { background: #fef3c7; color: #b45309; }
-.badge-ctx { background: #e6f8f5; color: var(--primary-dark); }
-.field-input { padding: 11px 14px; border-radius: var(--radius-sm); border: 1.5px solid #e2e8f0; background: #f8fafc; font-family: 'Prompt', sans-serif; font-size: 13.5px; color: var(--text); outline: none; transition: border-color 0.2s, background 0.2s; }
-.field-input:focus { border-color: var(--primary); background: #fff; }
-.field-input.error { border-color: #f87171; background: #fff5f5; }
-.field-input::placeholder { color: #cbd5e1; }
-.field-error { font-size: 11px; color: #ef4444; min-height: 14px; }
-.modal-footer { padding: 14px 20px 18px; display: flex; gap: 10px; }
-.btn-cancel { flex: 1; padding: 12px; border-radius: 50px; border: 1.5px solid var(--border); background: #fff; font-family: 'Prompt', sans-serif; font-size: 14px; font-weight: 500; color: var(--text-sub); cursor: pointer; transition: background 0.2s; }
-.btn-cancel:hover { background: #f8fafc; }
-.btn-confirm { flex: 1; padding: 12px; border-radius: 50px; border: none; background: var(--gradient); font-family: 'Prompt', sans-serif; font-size: 14px; font-weight: 700; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; box-shadow: var(--shadow-btn); transition: opacity 0.2s; }
-.btn-confirm:hover { opacity: 0.9; }
-
-.app-footer { text-align: center; font-size: 12px; color: var(--text-hint); margin-top: 4px; }
-  </style>
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
 <div class="app-bg">
 <div class="app-container">
 
+  <!-- Header -->
   <header class="app-header">
     <div class="header-icon-wrap">
-      <div class="header-icon"><i class="fas fa-stethoscope"></i></div>
+      <div class="header-icon">
+        <i class="fas fa-stethoscope"></i>
+      </div>
       <div class="ai-badge">AI</div>
     </div>
     <h1>HEAL English</h1>
-    <p class="header-subtitle">AI-assisted Healthcare Communication</p>
+    <p class="header-subtitle">Healthcare English with AI Learning</p>
     <div class="lang-badges">
       <span class="lang-badge th">🇹🇭 ไทย</span>
       <span class="dot">·</span>
@@ -413,6 +34,7 @@ body {
     </div>
   </header>
 
+  <!-- Scenario Selector -->
   <section class="card scenario-card">
     <div class="card-top">
       <div>
@@ -423,23 +45,28 @@ body {
     <div class="scenario-grid" id="scenarioGrid"></div>
   </section>
 
+  <!-- Tab Navigation -->
   <section class="card tab-card">
     <div class="tabs">
-      <button class="tab-btn active" data-tab="phrases" onclick="switchTab('phrases',this)">
+      <button class="tab-btn active" data-tab="phrases" onclick="switchTab('phrases', this)">
         <i class="fas fa-book-open"></i>
-        <span class="tab-label-en">Phrases</span><span class="tab-label-th">ประโยค</span>
+        <span class="tab-label-en">Phrases</span>
+        <span class="tab-label-th">ประโยค</span>
       </button>
-      <button class="tab-btn" data-tab="practice" onclick="switchTab('practice',this)">
+      <button class="tab-btn" data-tab="practice" onclick="switchTab('practice', this)">
         <i class="fas fa-microphone"></i>
-        <span class="tab-label-en">Practice</span><span class="tab-label-th">ฝึกพูด</span>
+        <span class="tab-label-en">Practice</span>
+        <span class="tab-label-th">ฝึกพูด</span>
       </button>
-      <button class="tab-btn" data-tab="chat" onclick="switchTab('chat',this)">
+      <button class="tab-btn" data-tab="chat" onclick="switchTab('chat', this)">
         <i class="fas fa-comments"></i>
-        <span class="tab-label-en">Role Play</span><span class="tab-label-th">สนทนา</span>
+        <span class="tab-label-en">Role Play</span>
+        <span class="tab-label-th">สนทนา</span>
       </button>
-      <button class="tab-btn" data-tab="translate" onclick="switchTab('translate',this)">
+      <button class="tab-btn" data-tab="translate" onclick="switchTab('translate', this)">
         <i class="fas fa-language"></i>
-        <span class="tab-label-en">Translate</span><span class="tab-label-th">แปลภาษา</span>
+        <span class="tab-label-en">Translate</span>
+        <span class="tab-label-th">แปลภาษา</span>
       </button>
     </div>
 
@@ -450,10 +77,12 @@ body {
           <div class="panel-title" id="phraseTitle">👋 Greeting Phrases</div>
           <div class="panel-sub" id="phraseCount">4 ประโยค · แตะ ▼ เพื่อดูคำอธิบาย</div>
         </div>
-        <button class="btn-add" onclick="openAddModal()"><i class="fas fa-plus"></i> เพิ่ม</button>
+        <button class="btn-add" onclick="openAddModal()">
+          <i class="fas fa-plus"></i> เพิ่ม
+        </button>
       </div>
       <div id="phraseList" class="phrase-list"></div>
-      <div class="tip-box">
+      <div class="tip-box" id="phraseTip">
         <div class="tip-title">ต้องการฝึกพูด?</div>
         <div class="tip-sub">เลือกประโยคแล้วกด ฝึกพูด เพื่อทดสอบการออกเสียง</div>
         <button class="tip-link" onclick="goToPractice()">ไปที่หน้าฝึกพูด <i class="fas fa-chevron-right"></i></button>
@@ -476,7 +105,8 @@ body {
       <div class="recognition-box" id="recBox">
         <div class="rec-placeholder" id="recPlaceholder">กดปุ่มไมค์แล้วพูดประโยคภาษาอังกฤษ</div>
         <div class="listening-anim" id="listeningAnim" style="display:none">
-          <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div>
           <span class="listening-text">กำลังฟัง...</span>
         </div>
         <div class="rec-result" id="recResult" style="display:none"></div>
@@ -486,7 +116,9 @@ body {
           <span class="score-msg" id="scoreMsg"></span>
           <span class="score-num" id="scoreNum"></span>
         </div>
-        <div class="score-bar-bg"><div class="score-bar-fill" id="scoreBarFill"></div></div>
+        <div class="score-bar-bg">
+          <div class="score-bar-fill" id="scoreBarFill"></div>
+        </div>
       </div>
       <button class="btn-record" id="recBtn" onclick="toggleRecording()">
         <i class="fas fa-microphone" id="recIcon"></i>
@@ -511,12 +143,14 @@ body {
           <div class="msg-content">
             <div class="msg-bubble">Hello! I'm your patient. How can I help you today?</div>
             <div class="msg-hint">สวัสดีค่ะ ฉันคือคนไข้ของคุณ วันนี้มีอะไรให้ช่วยไหมคะ?</div>
-            <button class="msg-listen" onclick="speakText('Hello! I\'m your patient. How can I help you today?','en')">▶ ฟัง</button>
+            <button class="msg-listen" onclick="speakText('Hello! I\'m your patient. How can I help you today?', 'en')">▶ ฟัง</button>
           </div>
         </div>
       </div>
       <div class="chat-input-area">
-        <button class="btn-mic-chat" id="chatMicBtn" onclick="toggleChatMic()"><i class="fas fa-microphone"></i></button>
+        <button class="btn-mic-chat" id="chatMicBtn" onclick="toggleChatMic()" title="กดเพื่อพูด">
+          <i class="fas fa-microphone"></i>
+        </button>
         <input type="text" id="chatInput" placeholder="พิมพ์หรือพูดภาษาไทย / English..." onkeydown="if(event.key==='Enter')sendChat()">
         <button class="btn-chat-send" onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
       </div>
@@ -539,7 +173,9 @@ body {
           <option value="en">🇬🇧 English</option>
           <option value="zh-CN">🇨🇳 中文</option>
         </select>
-        <button class="btn-swap" onclick="swapLangs()"><i class="fas fa-right-left"></i></button>
+        <button class="btn-swap" onclick="swapLangs()" title="สลับภาษา">
+          <i class="fas fa-right-left"></i>
+        </button>
         <select class="lang-select" id="toLang">
           <option value="en">🇬🇧 English</option>
           <option value="th">🇹🇭 ไทย</option>
@@ -548,12 +184,14 @@ body {
       </div>
       <div class="translate-input-wrap">
         <textarea id="translateInput" class="translate-input" rows="3" placeholder="พิมพ์ข้อความที่ต้องการแปล... / Type text to translate..." oninput="onTranslateInput()"></textarea>
-        <button class="translate-speak-btn" id="inputSpeakBtn" onclick="speakTranslateInput()" style="display:none"><i class="fas fa-volume-up"></i></button>
+        <button class="translate-speak-btn" id="inputSpeakBtn" onclick="speakTranslateInput()" style="display:none" title="ฟังเสียง"><i class="fas fa-volume-up"></i></button>
       </div>
       <div class="translate-output-wrap" id="translateOutput">
         <p class="translate-placeholder">คำแปลจะปรากฏที่นี่...</p>
       </div>
       <div class="translate-credit"><i class="fas fa-globe"></i> Powered by Google Translate</div>
+
+      <!-- Quick phrases from scenario -->
       <div class="quick-phrases-wrap" id="quickPhrases"></div>
     </div>
   </section>
@@ -604,367 +242,6 @@ body {
   </div>
 </div>
 
-<script>
-const STORAGE_KEY = 'heal_english_v2';
-
-const defaultScenarios = [
-  { id:'greeting', labelEn:'Greeting', labelTh:'การทักทาย', icon:'👋', phrases:[
-    { id:'g1', en:'Hello, welcome to our hospital.', th:'สวัสดีค่ะ ยินดีต้อนรับสู่โรงพยาบาลค่ะ', zh:'您好，欢迎来到我们医院。', context:'First contact with patient at entrance or reception', contextTh:'ใช้เมื่อต้อนรับผู้ป่วยที่ทางเข้าหรือเคาน์เตอร์' },
-    { id:'g2', en:'How can I help you today?', th:'วันนี้มีอะไรให้ช่วยไหมคะ?', zh:'我今天能帮您什么？', context:'Opening a patient encounter or service interaction', contextTh:'ใช้เปิดการสนทนาเพื่อสอบถามความต้องการผู้ป่วย' },
-    { id:'g3', en:'Please wait here for a moment.', th:'กรุณารอสักครู่ตรงนี้ค่ะ', zh:'请在这里稍等片刻。', context:'Asking patient to wait while you prepare', contextTh:'ใช้ขอให้ผู้ป่วยรอขณะเตรียมข้อมูลหรือดำเนินการ' },
-    { id:'g4', en:'Good morning! How are you feeling today?', th:'สวัสดีตอนเช้าค่ะ วันนี้รู้สึกเป็นอย่างไรบ้างคะ?', zh:'早上好！今天感觉怎么样？', context:'Morning greeting when visiting a patient in ward', contextTh:'ใช้ทักทายตอนเช้าเมื่อเยี่ยมผู้ป่วยในหอผู้ป่วย' }
-  ]},
-  { id:'registration', labelEn:'Registration', labelTh:'การลงทะเบียน', icon:'📋', phrases:[
-    { id:'r1', en:'May I have your full name, please?', th:'ขอทราบชื่อ-นามสกุลด้วยค่ะ', zh:'请问您的全名是什么？', context:'Collecting patient identity at registration desk', contextTh:'ใช้เก็บข้อมูลตัวตนผู้ป่วยที่เคาน์เตอร์ลงทะเบียน' },
-    { id:'r2', en:'Do you have an appointment today?', th:'ได้นัดไว้หรือเปล่าคะ?', zh:'您今天有预约吗？', context:'Checking if patient has a prior appointment', contextTh:'ใช้ตรวจสอบว่าผู้ป่วยมีนัดล่วงหน้าหรือไม่' },
-    { id:'r3', en:'Please fill in this form.', th:'กรุณากรอกแบบฟอร์มนี้ด้วยค่ะ', zh:'请填写这张表格。', context:'Handing over a patient registration form', contextTh:'ใช้ขณะมอบแบบฟอร์มลงทะเบียนให้ผู้ป่วยกรอก' },
-    { id:'r4', en:'Can I see your passport or ID card?', th:'ขอดูหนังสือเดินทางหรือบัตรประชาชนได้ไหมคะ?', zh:'我可以看一下您的护照或身份证吗？', context:'Verifying identity of foreign or new patients', contextTh:'ใช้ยืนยันตัวตนผู้ป่วยต่างชาติหรือผู้ป่วยใหม่' }
-  ]},
-  { id:'direction', labelEn:'Direction', labelTh:'การบอกทาง', icon:'🗺️', phrases:[
-    { id:'d1', en:'The pharmacy is on the first floor.', th:'ห้องยาอยู่ที่ชั้น 1 ค่ะ', zh:'药房在一楼。', context:'Directing patient to the pharmacy after consultation', contextTh:'ใช้บอกทางไปห้องยาหลังพบแพทย์' },
-    { id:'d2', en:'Go straight ahead and turn left.', th:'เดินตรงไปแล้วเลี้ยวซ้ายค่ะ', zh:'一直走，然后左转。', context:'Giving basic directions within the hospital building', contextTh:'ใช้บอกทิศทางพื้นฐานภายในอาคารโรงพยาบาล' },
-    { id:'d3', en:'The elevator is at the end of the corridor.', th:'ลิฟต์อยู่ที่ปลายทางเดินค่ะ', zh:'电梯在走廊尽头。', context:'Helping patient find the elevator to another floor', contextTh:'ใช้ช่วยผู้ป่วยหาลิฟต์เพื่อขึ้น-ลงชั้น' },
-    { id:'d4', en:'The restroom is around the corner.', th:'ห้องน้ำอยู่แถวหัวมุมค่ะ', zh:'洗手间就在转角处。', context:'Pointing patient to the nearest restroom', contextTh:'ใช้บอกทางไปห้องน้ำที่ใกล้ที่สุด' }
-  ]},
-  { id:'care', labelEn:'During Care', labelTh:'ขณะรับบริการ', icon:'🩺', phrases:[
-    { id:'c1', en:'Are you feeling better now?', th:'รู้สึกดีขึ้นไหมคะ?', zh:'您现在感觉好一些了吗？', context:"Checking patient's condition after treatment", contextTh:'ใช้ตรวจสอบอาการผู้ป่วยหลังรับการรักษาหรือทานยา' },
-    { id:'c2', en:'Please take this medicine twice a day.', th:'กรุณาทานยานี้วันละ 2 ครั้งค่ะ', zh:'请每天服用此药两次。', context:'Giving medication instructions to patient', contextTh:'ใช้อธิบายวิธีทานยาให้ผู้ป่วย' },
-    { id:'c3', en:'Do you have any allergies?', th:'คุณมีอาการแพ้อะไรบ้างไหมคะ?', zh:'您有任何过敏症吗？', context:'Screening for drug or food allergies before treatment', contextTh:'ใช้คัดกรองการแพ้ยาหรืออาหารก่อนให้การรักษา' },
-    { id:'c4', en:"Please relax, this won't hurt much.", th:'กรุณาผ่อนคลายนะคะ จะไม่เจ็บมากค่ะ', zh:'请放松，这不会太疼的。', context:'Reassuring patient before a procedure', contextTh:'ใช้ให้กำลังใจผู้ป่วยก่อนทำหัตถการ เช่น ฉีดยา หรือเจาะเลือด' }
-  ]}
-];
-
-let scenarios=[], activeScenario='greeting', practiceTarget='';
-let isRecording=false, isChatMic=false, recRef=null;
-let translateDebounce=null, copiedTimeout=null;
-let typingCounter=0, pendingDelete={};
-
-function loadScenarios(){try{const s=localStorage.getItem(STORAGE_KEY);if(s)return JSON.parse(s);}catch(e){}return JSON.parse(JSON.stringify(defaultScenarios));}
-function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(scenarios));}
-
-window.addEventListener('DOMContentLoaded',()=>{
-  scenarios=loadScenarios();
-  renderScenarios(); renderPhrases(); renderPracticeChips(); renderQuickPhrases();
-  window.speechSynthesis.onvoiceschanged=()=>window.speechSynthesis.getVoices();
-});
-
-function renderScenarios(){
-  document.getElementById('scenarioGrid').innerHTML=scenarios.map(s=>`
-    <button class="btn-scenario ${s.id===activeScenario?'active':''}" onclick="selectScenario('${s.id}')">
-      ${s.id===activeScenario?'<div class="active-dot"></div>':''}
-      <span class="s-icon">${s.icon}</span>
-      <span class="s-en">${s.labelEn}</span>
-      <span class="s-th">${s.labelTh}</span>
-    </button>`).join('');
-}
-
-function selectScenario(id){
-  activeScenario=id;
-  renderScenarios(); renderPhrases(); renderPracticeChips(); renderQuickPhrases();
-}
-
-function cur(){return scenarios.find(s=>s.id===activeScenario);}
-
-function renderPhrases(){
-  const s=cur();
-  document.getElementById('phraseTitle').textContent=`${s.icon} ${s.labelEn} Phrases`;
-  document.getElementById('phraseCount').textContent=`${s.phrases.length} ประโยค · แตะ ▼ เพื่อดูคำอธิบาย`;
-  const list=document.getElementById('phraseList');
-  if(!s.phrases.length){
-    list.innerHTML=`<div class="empty-state"><div class="empty-icon">💬</div><div class="empty-text">ยังไม่มีประโยคในหมวดนี้</div><button class="btn-empty-add" onclick="openAddModal()"><i class="fas fa-plus"></i> เพิ่มประโยคแรก</button></div>`;
-    return;
-  }
-  list.innerHTML=s.phrases.map(p=>buildCard(p)).join('');
-}
-
-function buildCard(p){
-  const hc=p.context||p.contextTh;
-  return `<div class="phrase-card" id="pc-${p.id}">
-    <div class="phrase-main">
-      <div class="phrase-texts">
-        <div class="phrase-row"><span class="badge-mini en">EN</span><span class="phrase-en-text">${eh(p.en)}</span></div>
-        <div class="phrase-row"><span class="badge-mini th">TH</span><span class="phrase-th-text">${eh(p.th)}</span></div>
-        <div class="phrase-row"><span class="badge-mini zh">中</span><span class="phrase-zh-text">${eh(p.zh)}</span></div>
-      </div>
-      <div class="phrase-actions">
-        <button class="btn-icon blue" onclick="speakText('${ea(p.en)}','en')" title="ฟัง EN"><i class="fas fa-volume-up"></i></button>
-        <button class="btn-icon yellow" onclick="speakText('${ea(p.zh)}','zh')" title="ฟัง 中文">中</button>
-        <button class="btn-icon red" id="del-${p.id}" onclick="confirmDelete('${p.id}')" title="ลบ"><i class="fas fa-trash-alt"></i></button>
-      </div>
-    </div>
-    ${hc?`<button class="phrase-context-toggle" onclick="toggleCtx('${p.id}')"><span>ใช้ในสถานการณ์ไหน?</span><i class="fas fa-chevron-down" id="ctx-icon-${p.id}"></i></button>
-    <div class="phrase-context-body" id="ctx-body-${p.id}">
-      ${p.contextTh?`<div class="ctx-line"><strong>ไทย:</strong> ${eh(p.contextTh)}</div>`:''}
-      ${p.context?`<div class="ctx-line"><strong>EN:</strong> ${eh(p.context)}</div>`:''}
-    </div>`:''}
-  </div>`;
-}
-
-function toggleCtx(id){
-  const b=document.getElementById(`ctx-body-${id}`);
-  const i=document.getElementById(`ctx-icon-${id}`);
-  if(!b)return;
-  b.classList.toggle('open');
-  i.style.transform=b.classList.contains('open')?'rotate(180deg)':'';
-}
-
-function confirmDelete(id){
-  const btn=document.getElementById(`del-${id}`);
-  if(!btn)return;
-  if(pendingDelete[id]){
-    clearTimeout(pendingDelete[id]); delete pendingDelete[id];
-    cur().phrases=cur().phrases.filter(p=>p.id!==id);
-    save(); renderPhrases(); renderPracticeChips(); renderQuickPhrases();
-  } else {
-    btn.classList.add('red-solid'); btn.classList.remove('red'); btn.innerHTML='ยืนยัน';
-    pendingDelete[id]=setTimeout(()=>{
-      delete pendingDelete[id];
-      if(btn){btn.classList.remove('red-solid');btn.classList.add('red');btn.innerHTML='<i class="fas fa-trash-alt"></i>';}
-    },3000);
-  }
-}
-
-function openAddModal(){
-  ['f-en','f-th','f-zh','f-ctx-th','f-ctx-en'].forEach(id=>document.getElementById(id).value='');
-  ['err-en','err-th','err-zh'].forEach(id=>document.getElementById(id).textContent='');
-  ['f-en','f-th','f-zh'].forEach(id=>document.getElementById(id).classList.remove('error'));
-  document.getElementById('addModal').classList.add('open');
-  setTimeout(()=>document.getElementById('f-en').focus(),120);
-}
-
-function closeAddModal(){document.getElementById('addModal').classList.remove('open');}
-
-function submitAddPhrase(){
-  const en=document.getElementById('f-en').value.trim();
-  const th=document.getElementById('f-th').value.trim();
-  const zh=document.getElementById('f-zh').value.trim();
-  const ctxTh=document.getElementById('f-ctx-th').value.trim();
-  const ctx=document.getElementById('f-ctx-en').value.trim();
-  let ok=true;
-  if(!en){setErr('err-en','f-en','กรุณากรอกประโยคภาษาอังกฤษ');ok=false;}
-  if(!th){setErr('err-th','f-th','กรุณากรอกประโยคภาษาไทย');ok=false;}
-  if(!zh){setErr('err-zh','f-zh','กรุณากรอกประโยคภาษาจีน');ok=false;}
-  if(!ok)return;
-  cur().phrases.push({id:'c'+Date.now(),en,th,zh,context:ctx,contextTh:ctxTh});
-  save(); closeAddModal(); renderPhrases(); renderPracticeChips(); renderQuickPhrases();
-}
-
-function setErr(eid,iid,msg){document.getElementById(eid).textContent=msg;document.getElementById(iid).classList.add('error');}
-
-function renderPracticeChips(){
-  document.getElementById('practiceChips').innerHTML=cur().phrases.slice(0,5).map(p=>
-    `<button class="chip ${practiceTarget===p.en?'active':''}" onclick="selTarget('${ea(p.en)}')" title="${ea(p.en)}">${eh(p.en.length>26?p.en.slice(0,26)+'…':p.en)}</button>`
-  ).join('');
-}
-
-function selTarget(en){
-  practiceTarget=en;
-  document.getElementById('targetBox').style.display=en?'block':'none';
-  document.getElementById('targetText').textContent=en;
-  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active',c.getAttribute('title')===en));
-}
-
-function goToPractice(){
-  const s=cur();
-  if(s.phrases.length)selTarget(s.phrases[0].en);
-  switchTab('practice',document.querySelector('[data-tab="practice"]'));
-}
-
-function toggleRecording(){
-  if(isRecording){recRef&&recRef.stop();return;}
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){showRR('Browser ไม่รองรับ กรุณาใช้ Chrome');return;}
-  const rec=new SR(); rec.lang='en-US'; rec.continuous=false; rec.interimResults=false; recRef=rec;
-  rec.onstart=()=>{
-    isRecording=true;
-    document.getElementById('recBtn').classList.add('recording');
-    document.getElementById('recBtnText').textContent='หยุดฟัง (Stop)';
-    document.getElementById('recIcon').className='fas fa-stop';
-    document.getElementById('recBox').classList.add('listening');
-    document.getElementById('recPlaceholder').style.display='none';
-    document.getElementById('recResult').style.display='none';
-    document.getElementById('listeningAnim').style.display='flex';
-    document.getElementById('scoreBox').style.display='none';
-  };
-  rec.onresult=e=>{const t=e.results[0][0].transcript;showRR(t);showScore(t);};
-  rec.onend=()=>{
-    isRecording=false;
-    document.getElementById('recBtn').classList.remove('recording');
-    document.getElementById('recBtnText').textContent='กดเพื่อพูด (Tap to Speak)';
-    document.getElementById('recIcon').className='fas fa-microphone';
-    document.getElementById('recBox').classList.remove('listening');
-    document.getElementById('listeningAnim').style.display='none';
-    document.getElementById('recPlaceholder').style.display='';
-  };
-  rec.onerror=()=>{isRecording=false;showRR('ไม่สามารถรับเสียงได้ กรุณาลองอีกครั้ง');};
-  rec.start();
-}
-
-function showRR(t){
-  document.getElementById('listeningAnim').style.display='none';
-  document.getElementById('recPlaceholder').style.display='none';
-  const el=document.getElementById('recResult');
-  el.textContent=`You said: "${t}"`; el.style.display='block';
-}
-
-function showScore(spoken){
-  const score=calcScore(spoken,practiceTarget);
-  const box=document.getElementById('scoreBox');
-  box.style.display='block'; box.className='score-box';
-  let cls,msg;
-  if(score>=90){cls='good';msg='✨ ยอดเยี่ยมมากค่ะ!';}
-  else if(score>=75){cls='ok';msg='👍 ดีมากค่ะ ลองฝึกอีกนิดนะคะ';}
-  else if(score>=60){cls='meh';msg='💪 ฝึกอีกหน่อยนะคะ';}
-  else{cls='bad';msg='🎤 ลองพูดใหม่อีกครั้งนะคะ';}
-  box.classList.add(cls);
-  document.getElementById('scoreMsg').textContent=msg;
-  document.getElementById('scoreNum').textContent=score+'%';
-  const fill=document.getElementById('scoreBarFill');
-  fill.style.width='0'; setTimeout(()=>fill.style.width=score+'%',50);
-}
-
-function calcScore(spoken,target){
-  if(!target)return Math.floor(Math.random()*16)+82;
-  const sw=spoken.toLowerCase().replace(/[^a-z ]/g,'').split(' ').filter(Boolean);
-  const tw=target.toLowerCase().replace(/[^a-z ]/g,'').split(' ').filter(Boolean);
-  let m=0; tw.forEach(w=>{if(sw.some(s=>s.includes(w)||w.includes(s)))m++;});
-  return Math.min(100,Math.floor(m/Math.max(tw.length,1)*100*1.08+8));
-}
-
-const aiReplies=[
-  {t:/สวัสดี|hello|hi\b/i, en:"Hello! I feel a bit dizzy today.", th:"สวัสดีค่ะ วันนี้ฉันรู้สึกเวียนหัวนิดหน่อยค่ะ"},
-  {t:/ชื่อ|name/i, en:"My name is Emily. I'm a tourist from Australia.", th:"ฉันชื่อเอมิลี่ เป็นนักท่องเที่ยวจากออสเตรเลียค่ะ"},
-  {t:/ปวด|pain|เจ็บ|hurt/i, en:"It hurts right here on my lower abdomen.", th:"เจ็บตรงท้องน้อยข้างนี้ค่ะ"},
-  {t:/ทาง|where|ห้องน้ำ|restroom|toilet/i, en:"Could you show me the way to the restroom?", th:"ช่วยบอกทางไปห้องน้ำหน่อยได้ไหมคะ?"},
-  {t:/แพ้|allergy|allergic/i, en:"I'm allergic to penicillin and shellfish.", th:"ฉันแพ้ยาเพนิซิลินและอาหารทะเลมีเปลือกค่ะ"},
-  {t:/นัด|appointment/i, en:"Yes, I have an appointment with Dr. Smith at 10 AM.", th:"ใช่ค่ะ ฉันนัดกับคุณหมอสมิธตอน 10 โมงเช้าค่ะ"},
-  {t:/ยา|medicine|drug/i, en:"I'm currently taking blood pressure medication.", th:"ตอนนี้ฉันทานยาความดันอยู่ค่ะ"},
-  {t:/ดี|better|okay|fine/i, en:"I feel a little better now, thank you so much!", th:"รู้สึกดีขึ้นนิดหน่อยแล้วค่ะ ขอบคุณมากเลยค่ะ"},
-];
-
-function getReply(t){for(const r of aiReplies)if(r.t.test(t))return r;return{en:"I see. Could you please explain a bit more?",th:"เข้าใจแล้วค่ะ ช่วยอธิบายเพิ่มเติมหน่อยได้ไหมคะ?"};}
-
-function sendChat(){
-  const inp=document.getElementById('chatInput');
-  const t=inp.value.trim(); if(!t)return; inp.value='';
-  addMsg('user',t);
-  const tid=addTyping();
-  setTimeout(()=>{removeTyping(tid);const r=getReply(t);addMsg('ai',r.en,r.th);speakText(r.en,'en');},900+Math.random()*500);
-}
-
-function addMsg(role,en,th=''){
-  const box=document.getElementById('chatBox');
-  const d=document.createElement('div'); d.className=`msg ${role}`;
-  if(role==='ai'){
-    d.innerHTML=`<div class="msg-avatar"><i class="fas fa-robot"></i></div><div class="msg-content"><div class="msg-bubble">${eh(en)}</div>${th?`<div class="msg-hint">${eh(th)}</div>`:''}<button class="msg-listen" onclick="speakText('${ea(en)}','en')">▶ ฟัง</button></div>`;
-  } else {
-    d.innerHTML=`<div class="msg-content"><div class="msg-bubble">${eh(en)}</div></div><div class="msg-user-avatar"><i class="fas fa-user"></i></div>`;
-  }
-  box.appendChild(d); box.scrollTop=box.scrollHeight;
-}
-
-function addTyping(){
-  const id='ty-'+(++typingCounter);
-  const box=document.getElementById('chatBox');
-  const d=document.createElement('div'); d.className='msg ai'; d.id=id;
-  d.innerHTML=`<div class="msg-avatar"><i class="fas fa-robot"></i></div><div class="msg-content"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
-  box.appendChild(d); box.scrollTop=box.scrollHeight; return id;
-}
-
-function removeTyping(id){const el=document.getElementById(id);if(el)el.remove();}
-
-function toggleChatMic(){
-  const btn=document.getElementById('chatMicBtn');
-  if(isChatMic){recRef&&recRef.stop();return;}
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR)return;
-  const rec=new SR(); rec.lang='th-TH'; recRef=rec;
-  rec.onstart=()=>{isChatMic=true;btn.classList.add('recording');};
-  rec.onresult=e=>{const t=e.results[0][0].transcript;document.getElementById('chatInput').value=t;setTimeout(sendChat,80);};
-  rec.onend=()=>{isChatMic=false;btn.classList.remove('recording');};
-  rec.start();
-}
-
-function onTranslateInput(){
-  const t=document.getElementById('translateInput').value;
-  document.getElementById('inputSpeakBtn').style.display=t?'flex':'none';
-  clearTimeout(translateDebounce);
-  if(!t.trim()){setTO('');return;}
-  setTOLoading();
-  translateDebounce=setTimeout(()=>doTrans(t),600);
-}
-
-async function doTrans(text){
-  const from=document.getElementById('fromLang').value;
-  const to=document.getElementById('toLang').value;
-  try{
-    const url=`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${from}&tl=${to}&dt=t&q=${encodeURIComponent(text)}`;
-    const res=await fetch(url); if(!res.ok)throw new Error();
-    const data=await res.json();
-    setTO(data[0].map(i=>i[0]).join(''));
-  }catch{setTO('','[ไม่สามารถเชื่อมต่อ Google Translate ได้]');}
-}
-
-function setTOLoading(){document.getElementById('translateOutput').innerHTML='<div class="translate-loading"><div class="translate-spinner"></div>กำลังแปล...</div>';}
-
-function setTO(text,err=''){
-  const el=document.getElementById('translateOutput');
-  if(!text&&!err){el.innerHTML='<p class="translate-placeholder">คำแปลจะปรากฏที่นี่...</p>';return;}
-  if(err){el.innerHTML=`<p class="translate-placeholder">${eh(err)}</p>`;return;}
-  el.innerHTML=`<p class="translate-result">${eh(text)}</p><div class="translate-out-actions"><button class="btn-out-action" onclick="speakTransOut('${ea(text)}')" title="ฟัง"><i class="fas fa-volume-up"></i></button><button class="btn-out-action" onclick="copyTrans('${ea(text)}')" title="คัดลอก" id="copyBtn"><i class="fas fa-copy"></i></button></div>`;
-}
-
-function speakTranslateInput(){speakText(document.getElementById('translateInput').value,document.getElementById('fromLang').value);}
-function speakTransOut(text){speakText(text,document.getElementById('toLang').value);}
-
-function copyTrans(text){
-  navigator.clipboard.writeText(text).then(()=>{
-    const btn=document.getElementById('copyBtn'); if(!btn)return;
-    btn.innerHTML='<i class="fas fa-check"></i>';
-    clearTimeout(copiedTimeout);
-    copiedTimeout=setTimeout(()=>{if(btn)btn.innerHTML='<i class="fas fa-copy"></i>';},1800);
-  });
-}
-
-function swapLangs(){
-  const from=document.getElementById('fromLang');
-  const to=document.getElementById('toLang');
-  const inp=document.getElementById('translateInput');
-  const cur=document.querySelector('.translate-result');
-  const swapText=cur?cur.textContent:'';
-  const tmp=from.value; from.value=to.value; to.value=tmp;
-  if(swapText){inp.value=swapText;document.getElementById('inputSpeakBtn').style.display='flex';onTranslateInput();}
-}
-
-function renderQuickPhrases(){
-  const s=cur();
-  const w=document.getElementById('quickPhrases');
-  if(!s.phrases.length){w.innerHTML='';return;}
-  w.innerHTML=`<div class="quick-label">ประโยคด่วน · ${s.labelTh}</div>${s.phrases.slice(0,3).map(p=>`<div class="quick-phrase-item"><div class="q-en">${eh(p.en)}</div><div class="q-th">🇹🇭 ${eh(p.th)}</div><div class="q-zh">🇨🇳 ${eh(p.zh)}</div></div>`).join('')}`;
-}
-
-function switchTab(tabId,btnEl){
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-  if(btnEl)btnEl.classList.add('active');
-  else{const b=document.querySelector(`[data-tab="${tabId}"]`);if(b)b.classList.add('active');}
-  const panel=document.getElementById(`panel-${tabId}`);
-  if(panel)panel.classList.add('active');
-}
-
-function speakText(text,lang){
-  if(!text)return;
-  const synth=window.speechSynthesis; synth.cancel();
-  const utt=new SpeechSynthesisUtterance(text);
-  const voices=synth.getVoices();
-  const map={'th':['th','th-TH'],'en':['en-US','en-GB','en'],'zh':['zh-CN','zh-TW','zh'],'zh-CN':['zh-CN','zh-TW','zh'],'zh-TW':['zh-TW','zh-CN','zh']};
-  const targets=map[lang]||['en-US'];
-  const voice=voices.find(v=>targets.some(t=>v.lang.startsWith(t)));
-  if(voice)utt.voice=voice; utt.lang=targets[0]; utt.rate=0.9;
-  synth.speak(utt);
-}
-
-function eh(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
-function ea(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
-</script>
+<script src="/script.js"></script>
 </body>
 </html>
