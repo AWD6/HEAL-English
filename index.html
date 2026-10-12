@@ -265,14 +265,14 @@
     <div class="tab-panel" id="panel-ai-translator">
       <div class="ai-translator-hero">
         <div class="ai-hero-copy">
-          <span class="ai-hero-kicker"><i class="fas fa-circle"></i> AI Translator</span>
-          <h2>ล่ามแปลพร้อม</h2>
+          <span class="ai-hero-kicker"><i class="fas fa-circle"></i> ล่ามแปลพร้อม | AI Translator</span>
+          <h2>AI Translator</h2>
           <p>พูดไทย แล้วให้ล่ามแปลให้ทันที — สลับรับเสียงผู้ป่วยและพูดคำแปลกลับโดยไม่ต้องพิมพ์</p>
           <div class="ai-language-chips"><span>🇹🇭 ไทย</span><i class="fas fa-arrow-right"></i><span>🇬🇧 English</span><span>🇨🇳 中文</span><span>🇲🇲 မြန်မာ</span></div>
         </div>
         <div class="ai-hero-orb"><div class="ai-hero-orb-core"></div><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
       </div>
-      <div class="ai-translator-how"><i class="fas fa-ear-listen"></i><span><strong>เริ่มต้นฟังภาษาไทย:</strong> บุคลากรพูดภาษาไทยก่อน ระบบตรวจภาษาจากเสียงที่รู้จำได้ แปลเป็นภาษาผู้ป่วยที่เลือก แล้วสลับฟังอีกฝ่ายต่อเนื่องทีละประโยค; เปลี่ยนเป็นให้ผู้ป่วยเริ่มก่อนได้</span></div>
+      <div class="ai-translator-how"><i class="fas fa-ear-listen"></i><span><strong>เริ่มต้นฟังภาษาไทย:</strong> บุคลากรพูดภาษาไทยก่อน ระบบแปลและพูดคำแปล แล้วคงภาษาที่ฟังไว้เดิม; เจ้าหน้าที่กด “สลับภาษาที่ฟัง” เองเมื่อเปลี่ยนผู้พูด หรือเลือกให้ผู้ป่วยเริ่มก่อนได้</span></div>
       <button type="button" class="ai-back-google" onclick="switchTab('translate')"><i class="fas fa-arrow-left"></i> กลับไป Google Translate</button>
       <section class="interpreter-card" aria-labelledby="interpreterTitle">
         <div class="interpreter-heading">
@@ -280,7 +280,7 @@
             <div class="ai-orb"><span class="orb-core"></span><span class="orb-shine"></span></div>
             <i class="fas fa-star orb-sparkle sparkle-one"></i><i class="fas fa-star orb-sparkle sparkle-two"></i><i class="fas fa-star orb-sparkle sparkle-three"></i>
           </div>
-          <div><div class="interpreter-title" id="interpreterTitle">ล่ามแปลพร้อม</div><div class="interpreter-caption">เลือกภาษาผู้ป่วย แล้วพูดโต้ตอบกันทีละประโยค</div></div>
+          <div><div class="interpreter-title" id="interpreterTitle">ล่ามแปลพร้อม</div><div class="interpreter-caption">ระบบคงภาษาที่ฟังไว้ · เจ้าหน้าที่กดสลับเองเมื่อเปลี่ยนผู้พูด</div></div>
         </div>
         <label class="interpreter-label" for="interpreterLang">ภาษาของผู้ป่วย</label>
         <select class="lang-select" id="interpreterLang" onchange="onInterpreterLanguageChange()">
@@ -302,7 +302,7 @@
         <div class="interpreter-actions">
           <button class="interpreter-start" id="interpreterStartBtn" onclick="startInterpreter()"><i class="fas fa-microphone"></i> เริ่ม AI Translator</button>
           <button class="interpreter-stop" id="interpreterStopBtn" onclick="stopInterpreter()" disabled><i class="fas fa-stop"></i> หยุด</button>
-          <button class="interpreter-swap" id="interpreterSwapBtn" onclick="switchInterpreterTurn()" disabled><i class="fas fa-repeat"></i> สลับฝั่ง</button>
+          <button class="interpreter-swap" id="interpreterSwapBtn" onclick="switchInterpreterTurn()" disabled><i class="fas fa-repeat"></i> สลับภาษาที่ฟัง</button>
         </div>
         <p class="interpreter-disclaimer"><i class="fas fa-circle-info"></i> ต้องอนุญาตไมโครโฟนและใช้ผ่าน HTTPS/localhost; ระบบตรวจภาษาโดยดูสคริปต์ของข้อความที่รู้จำได้ และการรู้จำเสียงยังขึ้นกับภาษา/ความสามารถของเบราว์เซอร์ ข้อความส่งไป Google Translate เพื่อแปล โปรดหลีกเลี่ยงข้อมูลระบุตัวตนและตรวจทานก่อนใช้ทางการแพทย์</p>
       </section>
@@ -362,7 +362,7 @@
         <div class="field-error" id="err-en"></div>
       </div>
       <div class="field-group">
-        <label class="field-label"><span class="badge-phonetic"></span> คำอ่าน EN (สีม่วง)</label>
+        <label class="field-label"><span class="badge-phonetic"></span> EN · อักษรไทย</label>
         <input type="text" id="f-phonetic-en" class="field-input" placeholder="AI จะสร้างให้อัตโนมัติ">
       </div>
       <div class="field-group">
@@ -380,8 +380,8 @@
         <div class="field-error" id="err-my"></div>
       </div>
       <div class="field-group">
-        <label class="field-label"><span class="badge-phonetic"></span> คำอ่านจีน (ภาษาไทย)</label>
-        <input type="text" id="f-phonetic-zh" class="field-input" placeholder="ระบบสร้างคำอ่านภาษาไทยให้อัตโนมัติ">
+        <label class="field-label"><span class="badge-phonetic"></span> 中文 · อักษรไทย</label>
+        <input type="text" id="f-phonetic-zh" class="field-input" placeholder="ระบบสร้างเป็นอักษรไทยให้อัตโนมัติ">
       </div>
       <div class="field-group">
         <label class="field-label"><span class="badge-ctx">?</span> ใช้ในสถานการณ์ไหน (ไทย)</label>

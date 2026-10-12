@@ -380,6 +380,7 @@ let interpreterBusy = false;
 let interpreterSessionToken = 0;
 let interpreterNextLang = 'th';
 let interpreterRecognition = null;
+let interpreterRestartTimer = null;
 const myTranslationTasks = new Map();
 const translationMemory = new Map();
 const translationTasks = new Map();
@@ -500,7 +501,7 @@ function renderPhrases() {
             <span class="badge-mini zh">中</span>
             <div class="phrase-col">
               <div class="phrase-zh-text">${esc(p.zh)}</div>
-              ${p.phonetic_zh ? `<span class="phrase-phonetic"><b>คำอ่าน:</b> ${esc(p.phonetic_zh)}</span>` : ''}
+              ${p.phonetic_zh ? `<span class="phrase-phonetic">${esc(p.phonetic_zh)}</span>` : ''}
             </div>
           </div>
           <div class="phrase-row">
@@ -603,7 +604,7 @@ function renderPracticeCards() {
           <div class="ppi-texts">
             <div class="ppi-th">${esc(p.th)}</div>
             <div class="ppi-en">${esc(p.en)}</div>
-            ${p.phonetic_en ? `<div class="q-phonetic-en">คำอ่าน: ${esc(p.phonetic_en)}</div>` : ''}
+            ${p.phonetic_en ? `<div class="q-phonetic-en">${esc(p.phonetic_en)}</div>` : ''}
           </div>
           <span class="ppi-lang en">EN</span>
         </div>
@@ -612,7 +613,7 @@ function renderPracticeCards() {
           <div class="ppi-texts">
             <div class="ppi-th">${esc(p.th)}</div>
             <div class="ppi-en">${esc(p.zh)}</div>
-            ${p.phonetic_zh ? `<div class="q-phonetic-zh"><span class="pronunciation-label">คำอ่าน:</span> ${esc(p.phonetic_zh)}</div>` : ''}
+            ${p.phonetic_zh ? `<div class="q-phonetic-zh">${esc(p.phonetic_zh)}</div>` : ''}
           </div>
           <span class="ppi-lang zh">中</span>
         </div>
@@ -669,7 +670,7 @@ function selectPracticeCard(lang, text, id) {
   const pe = document.getElementById('targetPhonetic');
   const phoneticKey = ({en:'phonetic_en', zh:'phonetic_zh', my:'phonetic_my'})[lang];
   if (foundPhrase && foundPhrase[phoneticKey]) {
-    pe.textContent = `คำอ่าน: ${foundPhrase[phoneticKey]}`; pe.style.display = 'block';
+    pe.textContent = foundPhrase[phoneticKey]; pe.style.display = 'block';
   } else { pe.style.display = 'none'; }
   document.getElementById('scoreBox').style.display = 'none';
   document.getElementById('recResult').style.display = 'none';
@@ -904,11 +905,28 @@ function doDelete() {
 }
 
 /* ── Google Translate ─────────────────────────────────────── */
+function findPreparedTranslation(source, sl, tl) {
+  if (typeof scenarios === 'undefined' || !Array.isArray(scenarios)) return '';
+  const fields={th:'th',en:'en',zh:'zh','zh-CN':'zh',my:'my'};
+  const sourceField=fields[sl], targetField=fields[tl];
+  if (!sourceField || !targetField) return '';
+  const normalize=value=>String(value || '').normalize('NFKC').trim().replace(/\s+/g,' ').replace(/[.!?။၊。！？,，、;；:：]+$/u,'').toLocaleLowerCase();
+  const needle=normalize(source);
+  if (!needle) return '';
+  for (const scenario of scenarios) {
+    for (const phrase of scenario.phrases || []) {
+      if (phrase[targetField] && normalize(phrase[sourceField])===needle) return String(phrase[targetField]).trim();
+    }
+  }
+  return '';
+}
 async function gTranslate(text, sl, tl) {
   const source=String(text || '').trim();
   if (!source) return '';
   if (sl===tl) return source;
   const key=`${sl}\u0000${tl}\u0000${source}`;
+  const prepared=findPreparedTranslation(source,sl,tl);
+  if (prepared) { translationMemory.set(key,prepared); return prepared; }
   if (translationMemory.has(key)) return translationMemory.get(key);
   if (translationTasks.has(key)) return translationTasks.get(key);
   const task=(async()=>{
@@ -1356,7 +1374,7 @@ function renderQuizOptions(opts) {
       ${opts.map((o, i) => `
         <button class="quiz-option-btn" id="qopt-${i}" data-idx="${i}">
           <span class="opt-num">${labels[i]}</span>
-          <span class="quiz-option-copy"><span>${esc(o.text)}</span><small class="quiz-option-pronunciation">คำอ่าน: ${esc(genPhonetics(o.text))}</small></span>
+          <span class="quiz-option-copy"><span>${esc(o.text)}</span><small class="quiz-option-pronunciation">${esc(genPhonetics(o.text))}</small></span>
         </button>`).join('')}
     </div>`;
 
@@ -1501,7 +1519,7 @@ function appendAiMsg(en, th) {
     <div class="msg-content">
       ${th ? `<div class="msg-hint">${esc(th)}</div>` : ''}
       <div class="msg-bubble">${esc(en)}</div>
-      <div class="msg-phonetic"><strong>คำอ่าน:</strong> ${esc(genPhonetics(en))}</div>
+      <div class="msg-phonetic">${esc(genPhonetics(en))}</div>
       <button class="msg-listen" onclick="speakText('${ea(en)}','en')">▶ ฟัง</button>
     </div>`;
   box.appendChild(d);
@@ -1552,7 +1570,7 @@ function setTransOutput(text, err='') {
   if (!text && !err) { el.innerHTML = '<p class="translate-placeholder">คำแปลจะปรากฏที่นี่...</p>'; return; }
   if (err) { el.innerHTML = `<p class="translate-placeholder">${esc(err)}</p>`; return; }
   const phonetic=toLang==='en' ? genPhonetics(text) : (toLang==='zh-CN' ? genPhoneticsZh(text) : '');
-  const pronunciation=phonetic ? `<p class="translate-phonetic"><strong>คำอ่าน:</strong> ${esc(phonetic)}</p>` : '';
+  const pronunciation=phonetic ? `<p class="translate-phonetic">${esc(phonetic)}</p>` : '';
   el.innerHTML = `<p class="translate-result">${esc(text)}</p>
     ${pronunciation}
     <div class="translate-out-actions">
@@ -1613,7 +1631,7 @@ function renderQuickPhrases() {
         <div class="q-zh" onclick="speakText('${ea(p.zh)}','zh')" style="cursor:pointer;margin-top:2px">
           <i class="fas fa-volume-up" style="color:var(--primary);margin-right:4px"></i> ${esc(p.zh)}
         </div>
-        ${p.phonetic_zh ? `<div class="q-phonetic-zh"><span class="pronunciation-label">คำอ่าน:</span> ${esc(p.phonetic_zh)}</div>` : ''}
+        ${p.phonetic_zh ? `<div class="q-phonetic-zh">${esc(p.phonetic_zh)}</div>` : ''}
         <div class="q-my" onclick="speakText('${ea(p.my || '')}','my')" style="cursor:pointer;margin-top:4px">
           <i class="fas fa-volume-up" style="color:#7c3aed;margin-right:4px"></i> ${p.my ? esc(p.my) : '<span class="my-pending">กำลังเตรียมภาษาเมียนมาร์…</span>'}
         </div>
@@ -1953,8 +1971,8 @@ function onInterpreterLanguageChange() {
   if (interpreterNextLang === 'th') return;
   interpreterNextLang=patientLanguage(); interpreterBusy=true;
   try { if (interpreterRecognition) interpreterRecognition.abort(); } catch(e) {}
-  updateInterpreterTurn();
-  setTimeout(() => { if(interpreterActive){interpreterBusy=false;updateInterpreterTurn();startInterpreterRecognition();} },180);
+  interpreterBusy=false; updateInterpreterTurn();
+  if (!interpreterRecognition) scheduleInterpreterRecognition(80);
 }
 function onInterpreterFirstTurnChange() {
   if (interpreterActive) return;
@@ -1971,10 +1989,13 @@ function updateInterpreterTurn() {
   avatar.classList.toggle('listening', interpreterActive && !interpreterBusy);
   avatar.classList.toggle('speaking', interpreterActive && interpreterBusy);
   avatar.setAttribute('aria-label', interpreterActive ? (interpreterBusy ? 'AI ล่ามกำลังแปลหรือพูด' : 'AI ล่ามกำลังฟัง') : 'AI ล่ามพร้อมสนทนา');
+  const swapBtn=document.getElementById('interpreterSwapBtn');
+  if (swapBtn) swapBtn.disabled=!interpreterActive || interpreterBusy;
 }
 function startInterpreter() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { document.getElementById('interpreterStatus').textContent = 'เบราว์เซอร์นี้ไม่รองรับการรู้จำเสียง ลองใช้ Chrome รุ่นใหม่ผ่าน HTTPS'; return; }
+  if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
   interpreterSessionToken++;
   interpreterActive = true; interpreterBusy = false;
   interpreterNextLang = document.getElementById('interpreterFirstTurn').value === 'patient' ? patientLanguage() : 'th';
@@ -1987,31 +2008,59 @@ function startInterpreter() {
   document.getElementById('interpreterStatus').textContent = `เริ่ม AI Translator · กำลังฟัง ${languageLabel(interpreterNextLang)} · กรุณาพูดทีละคน`;
   updateInterpreterTurn(); startInterpreterRecognition();
 }
+function scheduleInterpreterRecognition(delay=120) {
+  if (interpreterRestartTimer) clearTimeout(interpreterRestartTimer);
+  interpreterRestartTimer=setTimeout(() => {
+    interpreterRestartTimer=null;
+    startInterpreterRecognition();
+  },delay);
+}
 function startInterpreterRecognition() {
   if (!interpreterActive || interpreterBusy) return;
+  if (interpreterRecognition) return;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return;
+  let rec=null;
+  const sessionToken=interpreterSessionToken;
   try {
-    const rec = new SR(); interpreterRecognition = rec;
+    rec = new SR(); interpreterRecognition = rec;
     rec.lang = speechLocale(interpreterNextLang); rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 5;
-    rec.onstart = () => { document.getElementById('interpreterStatus').textContent = `กำลังฟัง ${languageLabel(interpreterNextLang)}…`; updateInterpreterTurn(); };
+    rec.onstart = () => { if(sessionToken!==interpreterSessionToken || interpreterRecognition!==rec) return; document.getElementById('interpreterStatus').textContent = `กำลังฟัง ${languageLabel(interpreterNextLang)}…`; updateInterpreterTurn(); };
     rec.onresult = event => {
+      if (sessionToken!==interpreterSessionToken || interpreterRecognition!==rec || !interpreterActive) return;
       let partial = '', finalText = '';
       for (let i=event.resultIndex;i<event.results.length;i++) {
         const t=bestRecognitionTranscript(event.results[i],interpreterNextLang);
         if(event.results[i].isFinal) finalText += `${t} `; else partial += t;
       }
       if (partial) document.getElementById('interpreterSourceText').textContent = partial;
-      if (finalText.trim()) handleInterpreterUtterance(finalText.trim(), interpreterNextLang);
+      if (finalText.trim()) {
+        handleInterpreterUtterance(finalText.trim(), interpreterNextLang);
+        try { rec.stop(); } catch(e) {}
+      }
     };
     rec.onerror = event => {
+      if (sessionToken!==interpreterSessionToken || interpreterRecognition!==rec) return;
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') { document.getElementById('interpreterStatus').textContent = 'ไมโครโฟนไม่ได้รับอนุญาต กรุณาเปิดสิทธิ์ไมโครโฟนในการตั้งค่าเบราว์เซอร์'; stopInterpreter(); }
       else if (event.error === 'language-not-supported') { const msg=`อุปกรณ์/เบราว์เซอร์ไม่รองรับการรู้จำ ${languageLabel(interpreterNextLang)}; ลองใช้ Chrome หรือใช้โหมดแปลแบบกดไมค์`; stopInterpreter(); document.getElementById('interpreterStatus').textContent = msg; }
       else if (event.error !== 'no-speech' && event.error !== 'aborted') document.getElementById('interpreterStatus').textContent = `มีปัญหาการรับเสียง (${event.error}) กำลังลองใหม่…`;
     };
-    rec.onend = () => { if (interpreterRecognition !== rec) return; if (interpreterActive && !interpreterBusy) setTimeout(startInterpreterRecognition, 250); };
+    rec.onend = () => {
+      if (interpreterRecognition===rec) interpreterRecognition=null;
+      if (interpreterActive && !interpreterBusy) scheduleInterpreterRecognition(100);
+    };
     rec.start();
-  } catch (err) { document.getElementById('interpreterStatus').textContent = 'เริ่มไมโครโฟนไม่ได้ กรุณาลองใหม่และตรวจสอบสิทธิ์ไมโครโฟน'; }
+  } catch (err) {
+    if (interpreterRecognition===rec) interpreterRecognition=null;
+    if (!interpreterActive) return;
+    if (err && ['NotAllowedError','SecurityError'].includes(err.name)) {
+      stopInterpreter();
+      document.getElementById('interpreterStatus').textContent = 'ไมโครโฟนไม่ได้รับอนุญาต กรุณาเปิดสิทธิ์ไมโครโฟนในการตั้งค่าเบราว์เซอร์';
+    } else {
+      document.getElementById('interpreterStatus').textContent = 'กำลังเชื่อมต่อไมโครโฟนใหม่…';
+      scheduleInterpreterRecognition(450);
+    }
+  }
 }
 async function handleInterpreterUtterance(text, sourceLang) {
   if (!interpreterActive || interpreterBusy) return;
@@ -2032,8 +2081,7 @@ async function handleInterpreterUtterance(text, sourceLang) {
     document.getElementById('interpreterStatus').textContent = `กำลังพูดคำแปล ${languageLabel(targetLang)}…`;
     await interpreterSpeak(translated, targetLang);
     if (interpreterActive && sessionToken === interpreterSessionToken) {
-      interpreterNextLang = sourceLang === 'th' ? patientLanguage() : 'th';
-      document.getElementById('interpreterStatus').textContent = `ล่ามแล้ว · ถึง ${languageLabel(interpreterNextLang)} พูดต่อ`;
+      document.getElementById('interpreterStatus').textContent = `แปลแล้ว · ยังฟัง ${languageLabel(interpreterNextLang)} อยู่ · เจ้าหน้าที่กดสลับฝั่งเมื่อเปลี่ยนผู้พูด`;
     }
   } catch (err) {
     if (sessionToken === interpreterSessionToken) {
@@ -2043,55 +2091,120 @@ async function handleInterpreterUtterance(text, sourceLang) {
   } finally {
     if (sessionToken === interpreterSessionToken) {
       interpreterBusy = false; updateInterpreterTurn();
-      if (interpreterActive) setTimeout(startInterpreterRecognition, 350);
+      if (interpreterActive) scheduleInterpreterRecognition(100);
     }
   }
 }
-function interpreterSpeak(text, lang) {
-  return new Promise(resolve => {
-    if (lang === 'my') {
-      const audio=playGoogleTts(text,'my',true);
-      if (!audio) { resolve(); return; }
-      let finished=false;
-      const done=()=>{if(!finished){finished=true;if(audio._interpreterFinish===done)audio._interpreterFinish=null;resolve();}};
-      audio._interpreterFinish=done;
-      audio.addEventListener('ended',done,{once:true});
-      audio.addEventListener('error',done,{once:true});
-      if (audio.playPromise && typeof audio.playPromise.catch==='function') audio.playPromise.catch(done);
-      setTimeout(done,20000);
-      return;
+function splitInterpreterSpeech(text, limit=150) {
+  let remaining=String(text || '').trim();
+  const parts=[], minimum=Math.floor(limit*0.55);
+  while (remaining.length>limit) {
+    const head=remaining.slice(0,limit+1);
+    let cut=0, match;
+    const sentenceBreak=/[.!?。！？၊။]+[”’"')\]]*/gu;
+    while ((match=sentenceBreak.exec(head))) {
+      const end=match.index+match[0].length;
+      if (end>=minimum && end<=limit) cut=end;
     }
-    const synth = window.speechSynthesis;
-    if (!synth) { const audio=playGoogleTts(text,lang,true); if(audio){audio.onended=resolve; audio.onerror=resolve; setTimeout(resolve,15000);} else resolve(); return; }
-    synth.cancel();
-    setTimeout(() => {
-      const voices=synth.getVoices(), locale=speechLocale(lang), voice=voices.find(v=>v.lang.replace('_','-').toLowerCase()===locale.toLowerCase()) || voices.find(v=>v.lang.toLowerCase().startsWith(lang.toLowerCase()));
-      if (!voice) {
-        const audio=playGoogleTts(text,lang,true);
-        if (audio) {
-          let finished=false;
-          const done=()=>{if(!finished){finished=true;resolve();}};
-          audio.addEventListener('ended',done,{once:true}); audio.addEventListener('error',done,{once:true});
-          if (audio.playPromise && typeof audio.playPromise.catch==='function') audio.playPromise.catch(done);
-          setTimeout(done,20000);
-        } else resolve();
-        return;
+    if (cut<minimum) {
+      const phraseBreak=/[,，、;；:：\s]+/gu;
+      while ((match=phraseBreak.exec(head))) {
+        const end=match.index+match[0].length;
+        if (end>=minimum && end<=limit) cut=end;
       }
-      const utterance=new SpeechSynthesisUtterance(text); utterance.lang=locale; utterance.rate=0.9; utterance.voice=voice;
-      let finished=false; const done=()=>{if(!finished){finished=true;resolve();}}; utterance.onend=done; utterance.onerror=done; synth.speak(utterance); setTimeout(done,20000);
-    },80);
+    }
+    if (cut<minimum) cut=limit;
+    if (/^[\uDC00-\uDFFF]$/.test(remaining.charAt(cut))) cut--;
+    const part=remaining.slice(0,cut).trim();
+    if (!part) { cut=limit; }
+    parts.push(part || remaining.slice(0,cut).trim());
+    remaining=remaining.slice(cut).trim();
+  }
+  if (remaining) parts.push(remaining);
+  return parts;
+}
+function interpreterSpeechWatchdog(text) {
+  return Math.max(30000,Math.min(60000,String(text || '').length*250));
+}
+function speakInterpreterGoogleChunk(text, lang) {
+  return new Promise(resolve => {
+    const audio=playGoogleTts(text,lang,true);
+    if (!audio) { resolve(); return; }
+    let finished=false, watchdog=null;
+    const done=()=>{
+      if (finished) return;
+      finished=true;
+      if (watchdog) clearTimeout(watchdog);
+      if (audio._interpreterFinish===done) audio._interpreterFinish=null;
+      resolve();
+    };
+    audio._interpreterFinish=done;
+    audio.addEventListener('ended',done,{once:true});
+    audio.addEventListener('error',done,{once:true});
+    if (audio.playPromise && typeof audio.playPromise.catch==='function') audio.playPromise.catch(done);
+    watchdog=setTimeout(done,interpreterSpeechWatchdog(text));
   });
 }
+function speakInterpreterNativeChunk(text, lang, locale, voice) {
+  return new Promise(resolve => {
+    const synth=window.speechSynthesis;
+    let finished=false, watchdog=null;
+    const done=()=>{
+      if (finished) return;
+      finished=true;
+      if (watchdog) clearTimeout(watchdog);
+      resolve();
+    };
+    const fallback=()=>{
+      if (finished) return;
+      finished=true;
+      if (watchdog) clearTimeout(watchdog);
+      if (!interpreterActive) { resolve(); return; }
+      try { synth.cancel(); } catch(e) {}
+      speakInterpreterGoogleChunk(text,lang).then(resolve,resolve);
+    };
+    const utterance=new SpeechSynthesisUtterance(text);
+    utterance.lang=locale; utterance.rate=0.9; utterance.voice=voice;
+    utterance.onend=done;
+    utterance.onerror=fallback;
+    watchdog=setTimeout(fallback,interpreterSpeechWatchdog(text));
+    try { synth.speak(utterance); } catch(e) { fallback(); }
+  });
+}
+async function interpreterSpeak(text, lang) {
+  const chunks=splitInterpreterSpeech(text);
+  if (!chunks.length) return;
+  const synth=window.speechSynthesis;
+  const locale=speechLocale(lang);
+  let voice=null;
+  if (synth) {
+    try { synth.cancel(); } catch(e) {}
+    if (lang!=='my') {
+      try {
+        const voices=synth.getVoices();
+        voice=voices.find(v=>v.lang.replace('_','-').toLowerCase()===locale.toLowerCase()) || voices.find(v=>v.lang.toLowerCase().startsWith(lang.toLowerCase())) || null;
+      } catch(e) {}
+    }
+  }
+  if (synth && voice) await new Promise(resolve=>setTimeout(resolve,80));
+  for (const chunk of chunks) {
+    if (!interpreterActive) return;
+    if (synth && voice && lang!=='my') await speakInterpreterNativeChunk(chunk,lang,locale,voice);
+    else await speakInterpreterGoogleChunk(chunk,lang);
+  }
+}
 function switchInterpreterTurn() {
-  if (!interpreterActive) return;
+  if (!interpreterActive || interpreterBusy) return;
   interpreterNextLang = interpreterNextLang === 'th' ? patientLanguage() : 'th';
   interpreterBusy = true;
   try { if(interpreterRecognition) interpreterRecognition.abort(); } catch(e) {}
-  setTimeout(() => { interpreterBusy=false; updateInterpreterTurn(); startInterpreterRecognition(); }, 180);
+  interpreterBusy=false; updateInterpreterTurn();
+  if (!interpreterRecognition) scheduleInterpreterRecognition(80);
 }
 function stopInterpreter() {
   interpreterSessionToken++;
   interpreterActive = false; interpreterBusy = false;
+  if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
   try { if(interpreterRecognition) interpreterRecognition.abort(); } catch(e) {}
   if(window.speechSynthesis) window.speechSynthesis.cancel();
   const activeAudio=currentGoogleAudio;
