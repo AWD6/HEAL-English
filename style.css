@@ -658,6 +658,8 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
 .badge-lang.my { background:#f3e8ff; color:#6b21a8; }
 .badge-mini.my,.ppi-lang.my { background:#f3e8ff; color:#6b21a8; }
 .phrase-my-text,.q-my { color:#5b21b6; font-family:'Prompt','Noto Sans Myanmar',sans-serif; line-height:1.7; overflow-wrap:anywhere; }
+.phrase-inline-audio { flex:0 0 30px; width:30px; height:30px; border:0; border-radius:50%; background:#f3e8ff; color:#7c3aed; cursor:pointer; }
+.phrase-inline-audio:disabled { opacity:.38; cursor:wait; }
 .btn-icon.purple { background:#f3e8ff; color:#7c3aed; }
 .btn-icon:disabled { opacity:.4; cursor:not-allowed; }
 .my-pending { color:#94a3b8; font-size:11px; font-style:italic; }
@@ -737,14 +739,4 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
 .target-thai-meaning span { color:#0f766e; font-size:9px; font-weight:700; }
 .target-thai-meaning strong { color:#134e4a; font-size:13px; line-height:1.55; overflow-wrap:anywhere; }
 .speech-notice { position:fixed; z-index:9999; left:50%; bottom:14px; width:min(92vw,460px); padding:10px 14px; border:1px solid #fcd34d; border-radius:12px; background:#fffbeb; color:#78350f; box-shadow:0 8px 24px rgba(15,23,42,.18); font-size:12px; line-height:1.5; opacity:0; pointer-events:none; transform:translate(-50%,12px); transition:opacity .2s,transform .2s; }
-.speech-notice.visible { opacity:1; pointer-events:auto; transform:translate(-50%,0); }
-.speech-notice button { margin-left:10px; padding:6px 11px; border:0; border-radius:999px; background:#7c3aed; color:white; font:600 11px 'Prompt',sans-serif; white-space:nowrap; cursor:pointer; }
-.pronunciation-label { color:#6b7280; font-size:9px; font-weight:700; }
-.translate-phonetic,.interpreter-phonetic,.quiz-option-pronunciation,.msg-phonetic { display:block; margin:3px 0 0; color:#64748b; font-size:11px; line-height:1.45; overflow-wrap:anywhere; }
-.translate-phonetic { padding:0 12px 8px; }
-.interpreter-phonetic[hidden] { display:none; }
-.quiz-option-pronunciation { margin-top:4px; font-size:10px; font-weight:400; white-space:normal; }
-.quiz-option-copy { display:block; min-width:0; flex:1; }
-.target-phonetic { margin-top:5px; color:#64748b; font-size:12px; line-height:1.45; overflow-wrap:anywhere; }
-.interpreter-phonetic { font-weight:500; }
-.msg-phonetic { font-size:10px; }
+.speech-notice.visible { opacity:1; transform:translate(-50%,0); }

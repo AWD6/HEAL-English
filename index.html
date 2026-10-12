@@ -222,11 +222,11 @@
       <div class="ai-translator-promo">
         <div class="ai-promo-orb"><i class="fas fa-wave-square"></i></div>
         <div class="ai-promo-copy">
-          <span class="ai-promo-eyebrow">ล่ามแปลพร้อม · AI</span>
+          <span class="ai-promo-eyebrow">REAL-TIME VOICE</span>
           <strong>คุยได้เลย ไม่ต้องพิมพ์</strong>
-          <span>พูดโต้ตอบได้ทันที ไทย ↔ English · 中文 · မြန်မာ</span>
+          <span>ล่ามเสียงสองทาง ไทย ↔ English · 中文 · မြန်မာ</span>
         </div>
-        <button type="button" class="ai-promo-button" onclick="switchTab('ai-translator')">ลองล่ามแปลพร้อม <i class="fas fa-arrow-right"></i></button>
+        <button type="button" class="ai-promo-button" onclick="switchTab('ai-translator')">ลอง AI Translator <i class="fas fa-arrow-right"></i></button>
       </div>
       <div class="translate-lang-row">
         <select class="lang-select" id="fromLang">
@@ -265,8 +265,8 @@
     <div class="tab-panel" id="panel-ai-translator">
       <div class="ai-translator-hero">
         <div class="ai-hero-copy">
-          <span class="ai-hero-kicker"><i class="fas fa-circle"></i> ล่ามแปลพร้อม · AI TRANSLATOR</span>
-          <h2>ล่ามแปลพร้อม</h2>
+          <span class="ai-hero-kicker"><i class="fas fa-circle"></i> REAL-TIME VOICE INTERPRETER</span>
+          <h2>AI Translator</h2>
           <p>พูดไทย แล้วให้ล่ามแปลให้ทันที — สลับรับเสียงผู้ป่วยและพูดคำแปลกลับโดยไม่ต้องพิมพ์</p>
           <div class="ai-language-chips"><span>🇹🇭 ไทย</span><i class="fas fa-arrow-right"></i><span>🇬🇧 English</span><span>🇨🇳 中文</span><span>🇲🇲 မြန်မာ</span></div>
         </div>
@@ -280,7 +280,7 @@
             <div class="ai-orb"><span class="orb-core"></span><span class="orb-shine"></span></div>
             <i class="fas fa-star orb-sparkle sparkle-one"></i><i class="fas fa-star orb-sparkle sparkle-two"></i><i class="fas fa-star orb-sparkle sparkle-three"></i>
           </div>
-          <div><div class="interpreter-title" id="interpreterTitle">ล่ามแปลพร้อม</div><div class="interpreter-caption">เลือกภาษาผู้ป่วย แล้วพูดโต้ตอบกันทีละประโยค</div></div>
+          <div><div class="interpreter-title" id="interpreterTitle">ล่ามเสียงแบบ Real-time</div><div class="interpreter-caption">เลือกภาษาผู้ป่วย แล้วพูดโต้ตอบกันทีละประโยค</div></div>
         </div>
         <label class="interpreter-label" for="interpreterLang">ภาษาของผู้ป่วย</label>
         <select class="lang-select" id="interpreterLang" onchange="onInterpreterLanguageChange()">
@@ -296,8 +296,8 @@
         <div class="interpreter-status" id="interpreterStatus" role="status">เลือกภาษาผู้ป่วย แล้วกดเริ่ม AI Translator</div>
         <div class="interpreter-turn" id="interpreterTurn">พร้อมเริ่มสนทนา</div>
         <div class="interpreter-transcript">
-          <div><span class="transcript-label" id="interpreterSourceLabel">สิ่งที่ได้ยิน</span><p id="interpreterSourceText">—</p><small class="interpreter-phonetic" id="interpreterSourcePhonetic" hidden></small></div>
-          <div><span class="transcript-label">คำแปล</span><p id="interpreterTranslatedText">—</p><small class="interpreter-phonetic" id="interpreterTranslatedPhonetic" hidden></small></div>
+          <div><span class="transcript-label" id="interpreterSourceLabel">สิ่งที่ได้ยิน</span><p id="interpreterSourceText">—</p></div>
+          <div><span class="transcript-label">คำแปล</span><p id="interpreterTranslatedText">—</p></div>
         </div>
         <div class="interpreter-actions">
           <button class="interpreter-start" id="interpreterStartBtn" onclick="startInterpreter()"><i class="fas fa-microphone"></i> เริ่ม AI Translator</button>
@@ -358,7 +358,7 @@
       </div>
       <div class="field-group">
         <label class="field-label"><span class="badge-lang en">EN</span> English (แก้ไขได้)</label>
-        <input type="text" id="f-en" class="field-input" placeholder="AI จะแปลให้ หรือคุณพิมพ์เอง" oninput="updateEnglishPhonetic()">
+        <input type="text" id="f-en" class="field-input" placeholder="AI จะแปลให้ หรือคุณพิมพ์เอง">
         <div class="field-error" id="err-en"></div>
       </div>
       <div class="field-group">
@@ -367,7 +367,7 @@
       </div>
       <div class="field-group">
         <label class="field-label"><span class="badge-lang zh">中</span> 中文 (แก้ไขได้)</label>
-        <input type="text" id="f-zh" class="field-input" placeholder="AI 将为您翻译" oninput="updateChinesePhonetic()">
+        <input type="text" id="f-zh" class="field-input" placeholder="AI 将为您翻译">
         <div class="field-error" id="err-zh"></div>
       </div>
       <div class="field-group">
@@ -380,8 +380,8 @@
         <div class="field-error" id="err-my"></div>
       </div>
       <div class="field-group">
-        <label class="field-label"><span class="badge-phonetic"></span> คำอ่านจีน (Pinyin)</label>
-        <input type="text" id="f-phonetic-zh" class="field-input" placeholder="ระบบสร้าง Pinyin ให้อัตโนมัติ">
+        <label class="field-label"><span class="badge-phonetic"></span> คำอ่าน 中文 (สีม่วง)</label>
+        <input type="text" id="f-phonetic-zh" class="field-input" placeholder="ไม่บังคับ">
       </div>
       <div class="field-group">
         <label class="field-label"><span class="badge-ctx">?</span> ใช้ในสถานการณ์ไหน (ไทย)</label>
@@ -415,8 +415,6 @@
   </div>
 </div>
 
-<script src="vendor/pinyin-pro.min.js"></script>
-<script src="translations.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
