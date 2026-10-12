@@ -923,6 +923,9 @@ function findPreparedTranslation(source, sl, tl) {
 async function gTranslate(text, sl, tl) {
   const source=String(text || '').trim();
   if (!source) return '';
+  // Google uses zh-CN for simplified Chinese; keep the UI code consistent.
+  sl = sl === 'zh' ? 'zh-CN' : sl;
+  tl = tl === 'zh' ? 'zh-CN' : tl;
   if (sl===tl) return source;
   const key=`${sl}\u0000${tl}\u0000${source}`;
   const prepared=findPreparedTranslation(source,sl,tl);
@@ -930,13 +933,20 @@ async function gTranslate(text, sl, tl) {
   if (translationMemory.has(key)) return translationMemory.get(key);
   if (translationTasks.has(key)) return translationTasks.get(key);
   const task=(async()=>{
-    const url=`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}&dt=t&q=${encodeURIComponent(source)}`;
+    const query=`sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}&dt=t&q=${encodeURIComponent(source)}`;
+    // The two public Google hosts are equivalent, but one can be temporarily
+    // unavailable or rate-limited from a particular GitHub Pages region.
+    const endpoints=[
+      `https://translate.googleapis.com/translate_a/single?client=gtx&${query}`,
+      `https://translate.google.com/translate_a/single?client=gtx&${query}`
+    ];
     let lastError;
-    for (let attempt=0;attempt<3;attempt++) {
+    for (let attempt=0;attempt<4;attempt++) {
+      const url=endpoints[attempt % endpoints.length];
       const controller=new AbortController();
-      const timeout=setTimeout(()=>controller.abort(),15000);
+      const timeout=setTimeout(()=>controller.abort(),9000);
       try {
-        const res=await fetch(url,{signal:controller.signal});
+        const res=await fetch(url,{signal:controller.signal,cache:'no-store'});
         if(!res.ok) throw new Error(`HTTP ${res.status}`);
         const data=await res.json();
         const translated=Array.isArray(data?.[0]) ? data[0].map(row=>row?.[0] || '').join('').trim() : '';
@@ -946,7 +956,7 @@ async function gTranslate(text, sl, tl) {
         return translated;
       } catch(error) {
         lastError=error;
-        if(attempt<2) await new Promise(resolve=>setTimeout(resolve,300*(attempt+1)));
+        if(attempt<3) await new Promise(resolve=>setTimeout(resolve,350*(attempt+1)));
       } finally { clearTimeout(timeout); }
     }
     throw new Error(`Translation unavailable (${lastError?.message || 'network'})`);
@@ -2171,22 +2181,32 @@ function speakInterpreterNativeChunk(text, lang, locale, voice) {
     try { synth.speak(utterance); } catch(e) { fallback(); }
   });
 }
+async function getInterpreterVoice(synth, lang, locale) {
+  if (!synth || lang === 'my') return null;
+  const find=()=>{
+    const voices=synth.getVoices() || [];
+    return voices.find(v=>v.lang.replace('_','-').toLowerCase()===locale.toLowerCase())
+      || voices.find(v=>v.lang.toLowerCase().startsWith(lang.toLowerCase())) || null;
+  };
+  let voice=find();
+  if (voice) return voice;
+  // On GitHub Pages, Chrome often populates voices after the first user gesture.
+  // Wait briefly instead of immediately falling back to an autoplay-sensitive URL.
+  await new Promise(resolve=>{
+    let settled=false;
+    const finish=()=>{ if(settled) return; settled=true; synth.removeEventListener('voiceschanged',finish); clearTimeout(timer); resolve(); };
+    const timer=setTimeout(finish,1200);
+    synth.addEventListener('voiceschanged',finish);
+  });
+  return find();
+}
 async function interpreterSpeak(text, lang) {
   const chunks=splitInterpreterSpeech(text);
   if (!chunks.length) return;
   const synth=window.speechSynthesis;
   const locale=speechLocale(lang);
-  let voice=null;
-  if (synth) {
-    try { synth.cancel(); } catch(e) {}
-    if (lang!=='my') {
-      try {
-        const voices=synth.getVoices();
-        voice=voices.find(v=>v.lang.replace('_','-').toLowerCase()===locale.toLowerCase()) || voices.find(v=>v.lang.toLowerCase().startsWith(lang.toLowerCase())) || null;
-      } catch(e) {}
-    }
-  }
-  if (synth && voice) await new Promise(resolve=>setTimeout(resolve,80));
+  if (synth) { try { synth.cancel(); } catch(e) {} }
+  const voice=await getInterpreterVoice(synth,lang,locale);
   for (const chunk of chunks) {
     if (!interpreterActive) return;
     if (synth && voice && lang!=='my') await speakInterpreterNativeChunk(chunk,lang,locale,voice);
