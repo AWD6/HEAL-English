@@ -951,7 +951,10 @@ async function gTranslate(text, sl, tl) {
     const query=`sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}&dt=t&q=${encodeURIComponent(source)}`;
     // The two public Google hosts are equivalent, but one can be temporarily
     // unavailable or rate-limited from a particular GitHub Pages region.
+    const proxyEndpoint=/^https?:$/.test(location.protocol)
+      ? `${location.origin}/translate?${query}` : '';
     const endpoints=[
+      ...(proxyEndpoint ? [proxyEndpoint] : []),
       `https://translate.googleapis.com/translate_a/single?client=gtx&${query}`,
       `https://translate.google.com/translate_a/single?client=gtx&${query}`
     ];
@@ -1726,13 +1729,15 @@ function appendUserMsg(text) {
 /* ── Translate ────────────────────────────────────────────── */
 function toggleTranslateMic() {
   const btn = document.getElementById('translateMicBtn');
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if(!SR) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR) { showSpeechNotice('iPhone/Safari รุ่นนี้ไม่รองรับการรับเสียงผ่านเว็บ กรุณาพิมพ์ข้อความในช่องแปล'); document.getElementById('translateInput')?.focus(); return; }
   const lang = document.getElementById('fromLang').value;
-  const rec = new SR(); rec.lang = speechLocale(lang); recRef = rec;
+  const rec = new SR(); rec.lang = speechLocale(lang); rec.continuous=false; rec.interimResults=false; recRef = rec;
   rec.onstart = () => btn.classList.add('recording');
   rec.onresult = (e) => { let text=''; for(let i=e.resultIndex;i<e.results.length;i++) if(e.results[i].isFinal) text+=e.results[i][0].transcript; if(text){document.getElementById('translateInput').value=text.trim(); onTranslateInput();} };
+  rec.onerror = (e) => { btn.classList.remove('recording'); if(e.error!=='aborted') showSpeechNotice('รับเสียงไม่ได้บนอุปกรณ์นี้ กรุณาลองอีกครั้งหรือพิมพ์ข้อความแทน'); };
   rec.onend = () => btn.classList.remove('recording');
-  rec.start();
+  try { rec.start(); } catch(e) { btn.classList.remove('recording'); showSpeechNotice('เริ่มไมโครโฟนไม่ได้ กรุณาลองอีกครั้ง'); }
 }
 function onTranslateInput() {
   const text = document.getElementById('translateInput').value;
@@ -2196,7 +2201,17 @@ function updateInterpreterTurn() {
 }
 function startInterpreter() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { document.getElementById('interpreterStatus').textContent = 'เบราว์เซอร์นี้ไม่รองรับการรู้จำเสียง ลองใช้ Chrome รุ่นใหม่ผ่าน HTTPS'; return; }
+  const manual=document.getElementById('interpreterManual');
+  if (!SR) {
+    if (manual) manual.hidden=false;
+    document.getElementById('interpreterStatus').textContent = 'iPhone/Safari รุ่นนี้ไม่เปิด SpeechRecognition · ใช้ช่องพิมพ์สำรองเพื่อแปลได้ทันที';
+    document.getElementById('interpreterStartBtn').disabled=true;
+    document.getElementById('interpreterStopBtn').disabled=false;
+    interpreterActive=true; interpreterBusy=false; interpreterNextLang=document.getElementById('interpreterFirstTurn').value === 'patient' ? patientLanguage() : 'th';
+    updateInterpreterTurn();
+    return;
+  }
+  if (manual) manual.hidden=true;
   if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
   interpreterSessionToken++;
   interpreterActive = true; interpreterBusy = false;
@@ -2309,6 +2324,16 @@ async function handleInterpreterUtterance(text, sourceLang) {
     }
   }
 }
+function submitInterpreterManual() {
+  const input=document.getElementById('interpreterManualInput');
+  const text=String(input?.value || '').trim();
+  if (!text) return;
+  if (!interpreterActive) startInterpreter();
+  if (interpreterBusy) return;
+  input.value='';
+  handleInterpreterUtterance(text, interpreterNextLang);
+}
+
 function splitInterpreterSpeech(text, limit=150) {
   let remaining=String(text || '').trim();
   const parts=[], minimum=Math.floor(limit*0.55);
@@ -2457,6 +2482,7 @@ function switchInterpreterTurn() {
 function stopInterpreter() {
   interpreterSessionToken++;
   interpreterActive = false; interpreterBusy = false;
+  const manual=document.getElementById('interpreterManual'); if (manual) manual.hidden=true;
   if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
   try { if(interpreterRecognition) interpreterRecognition.abort(); } catch(e) {}
   if(window.speechSynthesis) window.speechSynthesis.cancel();
