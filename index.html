@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=ttsproxy4">
 </head>
 <body>
 
@@ -107,7 +107,7 @@
       <div class="panel-header">
         <div>
           <div class="panel-title">Speaking Practice</div>
-          <div class="panel-sub">เลือกประโยค · กดไมค์ · AI วัดความแม่นยำ</div>
+          <div class="panel-sub">ฝึกพูดเฉพาะ English และ 中文 · เลือกประโยค · กดไมค์ · AI วัดความแม่นยำ</div>
         </div>
       </div>
 
@@ -165,6 +165,10 @@
             <div class="panel-sub">เลือกคำตอบที่ถูกต้องเพื่อสนทนากับผู้ป่วย AI</div>
           </div>
         </div>
+      </div>
+      <div class="quiz-language-switch" role="group" aria-label="ภาษาแบบฝึกหัด">
+        <button type="button" class="quiz-lang-btn active" data-quiz-lang="en" onclick="setQuizLanguage('en')">🇬🇧 English Quiz</button>
+        <button type="button" class="quiz-lang-btn" data-quiz-lang="zh" onclick="setQuizLanguage('zh')">🇨🇳 中文 Quiz</button>
       </div>
 
       <!-- Scenario Scope Selector -->
@@ -267,12 +271,12 @@
         <div class="ai-hero-copy">
           <span class="ai-hero-kicker"><i class="fas fa-circle"></i> ล่ามแปลพร้อม | AI Translator</span>
           <h2>AI Translator</h2>
-          <p>พูดไทย แล้วให้ล่ามแปลให้ทันที — สลับรับเสียงผู้ป่วยและพูดคำแปลกลับโดยไม่ต้องพิมพ์</p>
+          <p>เลือกคู่ภาษา ไทย ↔ ภาษาผู้ป่วย แล้วกดสลับเองเมื่อเปลี่ยนผู้พูด — ระบบแปลและอ่านออกเสียงทุกครั้ง</p>
           <div class="ai-language-chips"><span>🇹🇭 ไทย</span><i class="fas fa-arrow-right"></i><span>🇬🇧 English</span><span>🇨🇳 中文</span><span>🇲🇲 မြန်မာ</span></div>
         </div>
         <div class="ai-hero-orb"><div class="ai-hero-orb-core"></div><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
       </div>
-      <div class="ai-translator-how"><i class="fas fa-ear-listen"></i><span><strong>เริ่มต้นฟังภาษาไทย:</strong> บุคลากรพูดภาษาไทยก่อน ระบบแปลและพูดคำแปล แล้วคงภาษาที่ฟังไว้เดิม; เจ้าหน้าที่กด “สลับภาษาที่ฟัง” เองเมื่อเปลี่ยนผู้พูด หรือเลือกให้ผู้ป่วยเริ่มก่อนได้</span></div>
+      <div class="ai-translator-how"><i class="fas fa-ear-listen"></i><span><strong>โหมดคู่ภาษา:</strong> ระบบรับเฉพาะภาษาไทยกับภาษาที่เลือกเท่านั้น ไม่ตรวจหรือแปลภาษาที่สาม หลังแปลเสร็จจะยังฟังภาษาเดิมต่อ กด “สลับภาษาที่ฟัง” เองเมื่อต้องการเปลี่ยนฝั่ง</span></div>
       <button type="button" class="ai-back-google" onclick="switchTab('translate')"><i class="fas fa-arrow-left"></i> กลับไป Google Translate</button>
       <section class="interpreter-card" aria-labelledby="interpreterTitle">
         <div class="interpreter-heading">
@@ -280,7 +284,7 @@
             <div class="ai-orb"><span class="orb-core"></span><span class="orb-shine"></span></div>
             <i class="fas fa-star orb-sparkle sparkle-one"></i><i class="fas fa-star orb-sparkle sparkle-two"></i><i class="fas fa-star orb-sparkle sparkle-three"></i>
           </div>
-          <div><div class="interpreter-title" id="interpreterTitle">ล่ามแปลพร้อม</div><div class="interpreter-caption">ระบบคงภาษาที่ฟังไว้ · เจ้าหน้าที่กดสลับเองเมื่อเปลี่ยนผู้พูด</div></div>
+          <div><div class="interpreter-title" id="interpreterTitle">ล่ามแปลพร้อม</div><div class="interpreter-caption">แปลเฉพาะคู่ ไทย ↔ ภาษาที่เลือก · ผู้ใช้กดสลับภาษาเอง</div></div>
         </div>
         <label class="interpreter-label" for="interpreterLang">ภาษาของผู้ป่วย</label>
         <select class="lang-select" id="interpreterLang" onchange="onInterpreterLanguageChange()">
@@ -293,18 +297,18 @@
           <option value="th" selected>บุคลากรพูดภาษาไทยก่อน</option>
           <option value="patient">ผู้ป่วยพูดก่อน (ภาษาที่เลือก)</option>
         </select>
-        <div class="interpreter-status" id="interpreterStatus" role="status">เลือกภาษาผู้ป่วย แล้วกดเริ่ม AI Translator</div>
+        <div class="interpreter-status" id="interpreterStatus" role="status">ระบบตรวจภาษาอัตโนมัติ · เลือกภาษาผู้ป่วยปลายทาง แล้วกดเริ่ม</div>
         <div class="interpreter-turn" id="interpreterTurn">พร้อมเริ่มสนทนา</div>
         <div class="interpreter-transcript">
-          <div><span class="transcript-label" id="interpreterSourceLabel">สิ่งที่ได้ยิน</span><p id="interpreterSourceText">—</p></div>
-          <div><span class="transcript-label">คำแปล</span><p id="interpreterTranslatedText">—</p></div>
+          <div><span class="transcript-label" id="interpreterSourceLabel">สิ่งที่ได้ยิน</span><p id="interpreterSourceText">—</p><button type="button" class="transcript-speak" onclick="speakInterpreterSource()"><i class="fas fa-volume-up"></i> ฟังสิ่งที่ได้ยิน</button></div>
+          <div><span class="transcript-label">คำแปล</span><p id="interpreterTranslatedText">—</p><button type="button" class="transcript-speak" onclick="speakInterpreterTranslation()"><i class="fas fa-volume-up"></i> ฟังคำแปล</button></div>
         </div>
         <div class="interpreter-actions">
           <button class="interpreter-start" id="interpreterStartBtn" onclick="startInterpreter()"><i class="fas fa-microphone"></i> เริ่ม AI Translator</button>
           <button class="interpreter-stop" id="interpreterStopBtn" onclick="stopInterpreter()" disabled><i class="fas fa-stop"></i> หยุด</button>
-          <button class="interpreter-swap" id="interpreterSwapBtn" onclick="switchInterpreterTurn()" disabled><i class="fas fa-repeat"></i> สลับภาษาที่ฟัง</button>
+          <button class="interpreter-swap" id="interpreterSwapBtn" onclick="switchInterpreterTurn()" disabled><i class="fas fa-repeat"></i> สลับภาษาที่ฟังเอง</button>
         </div>
-        <p class="interpreter-disclaimer"><i class="fas fa-circle-info"></i> ต้องอนุญาตไมโครโฟนและใช้ผ่าน HTTPS/localhost; ระบบตรวจภาษาโดยดูสคริปต์ของข้อความที่รู้จำได้ และการรู้จำเสียงยังขึ้นกับภาษา/ความสามารถของเบราว์เซอร์ ข้อความส่งไป Google Translate เพื่อแปล โปรดหลีกเลี่ยงข้อมูลระบุตัวตนและตรวจทานก่อนใช้ทางการแพทย์</p>
+        <p class="interpreter-disclaimer"><i class="fas fa-circle-info"></i> ต้องอนุญาตไมโครโฟนและใช้ผ่าน HTTPS/localhost; ระบบจำกัดการแปลไว้เฉพาะคู่ไทยกับภาษาที่เลือก และการรู้จำเสียงยังขึ้นกับภาษา/ความสามารถของเบราว์เซอร์ ข้อความส่งไป Google Translate เพื่อแปล โปรดหลีกเลี่ยงข้อมูลระบุตัวตนและตรวจทานก่อนใช้ทางการแพทย์</p>
       </section>
     </div>
   </section>
@@ -417,6 +421,6 @@
 
 <script src="vendor/pinyin-pro.min.js"></script>
 <script src="translations.js"></script>
-<script src="script.js"></script>
+<script src="script.js?v=ttsproxy4"></script>
 </body>
 </html>
