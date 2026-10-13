@@ -7,7 +7,7 @@
 const STORAGE_KEY = 'heal_english_v6';
 const MULTILINGUAL_MIGRATION_KEY = 'heal_multilingual_seed_audited_v1';
 const CHINESE_THAI_PHONETIC_MIGRATION_KEY = 'heal_chinese_thai_phonetic_v4';
-const GOOGLE_SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzLHwNoll-8zkQayEf091n9msEnpR6YmS69aWdZP866ejKT-9GSPSUiFoscgCOntK2D/exec';
+const GOOGLE_SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbz47p8_KVJY5vg7tBunh5iWfqWIbHHX731_6CgZKOxpzTtTcM5CH2iV_OCtqnfJVY7d/exec';
 /* ═══ DEPARTMENTS ════════════════════════════════════════════ */
 const DEPT_GROUPS = [
   { group: 'หน่วยที่ 1', items: ['OPD 1', 'OPD 10', 'Telemedicine'] },
@@ -412,6 +412,7 @@ let interpreterSessionToken = 0;
 let interpreterNextLang = 'th';
 let interpreterRecognition = null;
 let interpreterRestartTimer = null;
+let interpreterLocaleFallbackIndex = 0;
 const myTranslationTasks = new Map();
 const translationMemory = new Map();
 const translationTasks = new Map();
@@ -2306,7 +2307,14 @@ async function syncUsageToSheet(log) {
 }
 
 /* ── Two-way live voice interpreter ───────────────────────── */
-function speechLocale(lang) { return ({ th:'th-TH', en:'en-US', zh:'zh-CN', 'zh-CN':'zh-CN', my:'my-MM' })[lang] || lang; }
+function speechLocale(lang) { return speechLocaleOptions(lang)[0]; }
+function speechLocaleOptions(lang) {
+  return ({
+    th:['th-TH','th'], en:['en-US','en-GB','en'],
+    zh:['zh-CN','cmn-Hans-CN','zh-TW'], 'zh-CN':['zh-CN','cmn-Hans-CN','zh-TW'],
+    my:['my-MM','my']
+  })[lang] || [lang];
+}
 function languageLabel(lang) { return ({ th:'ภาษาไทย', en:'English', 'zh-CN':'中文', my:'မြန်မာ (เมียนมาร์)' })[lang] || lang; }
 function detectInterpreterLanguage(text, expectedLang='th') {
   const value=String(text || '');
@@ -2364,11 +2372,12 @@ function updateInterpreterTurn() {
 }
 function startInterpreter() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { document.getElementById('interpreterStatus').textContent = 'เบราว์เซอร์นี้ไม่รองรับการรู้จำเสียง ลองใช้ Chrome รุ่นใหม่ผ่าน HTTPS'; return; }
+  if (!SR) { document.getElementById('interpreterStatus').textContent = 'เบราว์เซอร์นี้ไม่มี Web Speech Recognition API จึงใช้ไมค์ล่ามไม่ได้ · ลองเปิดเว็บผ่าน HTTPS ใน Safari รุ่นล่าสุดบน iPhone/iPad หรือ Chrome รุ่นล่าสุดบน Android'; return; }
   if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
   interpreterSessionToken++;
   interpreterActive = true; interpreterBusy = false;
   interpreterNextLang = document.getElementById('interpreterFirstTurn').value === 'patient' ? patientLanguage() : 'th';
+  interpreterLocaleFallbackIndex = 0;
   primeInterpreterAudioContext();
   primeGoogleAudioPlayback();
   document.getElementById('interpreterStartBtn').disabled = true;
@@ -2395,7 +2404,9 @@ function startInterpreterRecognition() {
   const sessionToken=interpreterSessionToken;
   try {
     rec = new SR(); interpreterRecognition = rec;
-    rec.lang = speechLocale(interpreterNextLang); rec.continuous = false; rec.interimResults = false; rec.maxAlternatives = 1;
+    const localeOptions=speechLocaleOptions(interpreterNextLang);
+    rec.lang = localeOptions[Math.min(interpreterLocaleFallbackIndex,localeOptions.length-1)];
+    rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 5;
     rec.onstart = () => { if(sessionToken!==interpreterSessionToken || interpreterRecognition!==rec) return; document.getElementById('interpreterStatus').textContent = `กำลังฟัง ${languageLabel(interpreterNextLang)}…`; updateInterpreterTurn(); };
     rec.onresult = event => {
       if (sessionToken!==interpreterSessionToken || interpreterRecognition!==rec || !interpreterActive) return;
@@ -2411,7 +2422,19 @@ function startInterpreterRecognition() {
     rec.onerror = event => {
       if (sessionToken!==interpreterSessionToken || interpreterRecognition!==rec) return;
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') { document.getElementById('interpreterStatus').textContent = 'ไมโครโฟนไม่ได้รับอนุญาต กรุณาเปิดสิทธิ์ไมโครโฟนในการตั้งค่าเบราว์เซอร์'; stopInterpreter(); }
-      else if (event.error === 'language-not-supported') { const msg=`อุปกรณ์/เบราว์เซอร์ไม่รองรับการรู้จำ ${languageLabel(interpreterNextLang)}; ลองใช้ Chrome หรือใช้โหมดแปลแบบกดไมค์`; stopInterpreter(); document.getElementById('interpreterStatus').textContent = msg; }
+      else if (event.error === 'language-not-supported') {
+        if (interpreterLocaleFallbackIndex < localeOptions.length-1) {
+          interpreterLocaleFallbackIndex++;
+          document.getElementById('interpreterStatus').textContent=`ลองรูปแบบภาษา ${localeOptions[interpreterLocaleFallbackIndex]} สำหรับ ${languageLabel(interpreterNextLang)}…`;
+          if (interpreterRecognition===rec) interpreterRecognition=null;
+          rec.onend=null;
+          try { rec.abort(); } catch(e) {}
+          scheduleInterpreterRecognition(260);
+        } else {
+          const msg=`บริการเสียงของเบราว์เซอร์นี้ไม่รองรับ ${languageLabel(interpreterNextLang)} (${localeOptions.join(', ')}) · ลองเลือกภาษาอื่นหรือใช้เบราว์เซอร์/อุปกรณ์ที่มีภาษานี้`;
+          stopInterpreter(); document.getElementById('interpreterStatus').textContent = msg;
+        }
+      }
       else if (event.error !== 'no-speech' && event.error !== 'aborted') document.getElementById('interpreterStatus').textContent = `มีปัญหาการรับเสียง (${event.error}) กำลังลองใหม่…`;
     };
     rec.onend = () => {
@@ -2620,6 +2643,7 @@ function restartInterpreterRecognitionForNewTurn() {
   if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
   // Invalidate every callback belonging to the previous language session.
   interpreterSessionToken++;
+  interpreterLocaleFallbackIndex=0;
   const old=interpreterRecognition;
   interpreterRecognition=null;
   try { if(old) old.onend=null; if(old) old.abort(); } catch(e) {}
