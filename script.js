@@ -956,10 +956,10 @@ async function gTranslate(text, sl, tl) {
       `https://translate.google.com/translate_a/single?client=gtx&${query}`
     ];
     let lastError;
-    for (let attempt=0;attempt<4;attempt++) {
+    for (let attempt=0;attempt<2;attempt++) {
       const url=endpoints[attempt % endpoints.length];
       const controller=new AbortController();
-      const timeout=setTimeout(()=>controller.abort(),9000);
+      const timeout=setTimeout(()=>controller.abort(),5500);
       try {
         const res=await fetch(url,{signal:controller.signal,cache:'no-store'});
         if(!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -971,7 +971,7 @@ async function gTranslate(text, sl, tl) {
         return translated;
       } catch(error) {
         lastError=error;
-        if(attempt<3) await new Promise(resolve=>setTimeout(resolve,350*(attempt+1)));
+        if(attempt<1) await new Promise(resolve=>setTimeout(resolve,180));
       } finally { clearTimeout(timeout); }
     }
     throw new Error(`Translation unavailable (${lastError?.message || 'network'})`);
@@ -1902,6 +1902,27 @@ function playNativeMyanmarTts(text) {
   } catch(e) { return false; }
 }
 
+function playNativeFallback(text, lang) {
+  const synth=window.speechSynthesis;
+  if (!synth || !text) return false;
+  try {
+    synth.cancel();
+    const locale=speechLocale(lang);
+    const voices=synth.getVoices ? synth.getVoices() : [];
+    const voice=voices.find(v=>v.lang.replace('_','-').toLowerCase()===locale.toLowerCase())
+      || voices.find(v=>v.lang.toLowerCase().startsWith(String(lang).toLowerCase()));
+    // Never claim success when the device has no voice for the requested language.
+    // This lets the Google/proxy path report a real failure and expose replay UI.
+    if (!voice) return false;
+    const utterance=new SpeechSynthesisUtterance(String(text));
+    utterance.lang=locale; utterance.rate=lang==='th'?0.88:0.92; utterance.pitch=1; utterance.volume=1;
+    if (voice) utterance.voice=voice;
+    utterance.onerror=()=>{};
+    synth.speak(utterance);
+    return true;
+  } catch(e) { return false; }
+}
+
 /* ── Burmese: local WAV for prepared phrases; Google TTS for new text ─ */
 function playGoogleTts(text, tl, useInterpreterAudio=false) {
   if (!text) return null;
@@ -1914,6 +1935,8 @@ function playGoogleTts(text, tl, useInterpreterAudio=false) {
     // this avoids Chromium blocking Google's audio host while retaining direct fallback.
     const proxyUrl=(!preparedPath && /^https?:$/.test(location.protocol))
       ? location.origin+'/google-tts?tl='+encodeURIComponent(tl)+'&q='+encodeURIComponent(text) : '';
+    // Keep the v6 route: same-origin proxy first (works reliably on the
+    // supplied server.py), then Google's direct audio as a browser fallback.
     const url=proxyUrl || directUrl;
     const backupUrl=proxyUrl ? directUrl : (preparedPath ? ''
       : 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob'
@@ -1935,8 +1958,8 @@ function playGoogleTts(text, tl, useInterpreterAudio=false) {
       audio.src=source; audio.load();
       audio.addEventListener('error',()=>{
         if (backupUrl && retryCount===0) { retryCount++; loadAndPlay(backupUrl); return; }
+        if (tl==='th' && playNativeFallback(text,'th')) return;
         if (useInterpreterAudio && tl==='th') return;
-        if (tl==='th') return;
         if (tl==='my' && !preparedPath && !useInterpreterAudio && playNativeMyanmarTts(text)) return;
         showSpeechNotice(`โหลดเสียง ${tl==='my'?'ภาษาเมียนมาร์':languageLabel(tl)} ไม่ได้ โปรดตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง`,audio);
       },{once:true});
@@ -1947,8 +1970,8 @@ function playGoogleTts(text, tl, useInterpreterAudio=false) {
           // replay this valid audio. Do not replace it with the blocked host.
           if (err?.name==='NotAllowedError') return;
           if (backupUrl && retryCount===0) { retryCount++; loadAndPlay(backupUrl); return; }
+          if (tl==='th' && playNativeFallback(text,'th')) return;
           if (useInterpreterAudio && tl==='th') return;
-          if (tl==='th') return;
           if (tl==='my' && !preparedPath && !useInterpreterAudio && playNativeMyanmarTts(text)) return;
           showSpeechNotice('เล่นเสียงไม่สำเร็จ โปรดตรวจอินเทอร์เน็ตและระดับเสียง แล้วลองอีกครั้ง',audio);
         });
@@ -2226,16 +2249,14 @@ function startInterpreterRecognition() {
   const sessionToken=interpreterSessionToken;
   try {
     rec = new SR(); interpreterRecognition = rec;
-    rec.lang = speechLocale(interpreterNextLang); rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 5;
+    rec.lang = speechLocale(interpreterNextLang); rec.continuous = false; rec.interimResults = false; rec.maxAlternatives = 1;
     rec.onstart = () => { if(sessionToken!==interpreterSessionToken || interpreterRecognition!==rec) return; document.getElementById('interpreterStatus').textContent = `กำลังฟัง ${languageLabel(interpreterNextLang)}…`; updateInterpreterTurn(); };
     rec.onresult = event => {
       if (sessionToken!==interpreterSessionToken || interpreterRecognition!==rec || !interpreterActive) return;
-      let partial = '', finalText = '';
+      let finalText = '';
       for (let i=event.resultIndex;i<event.results.length;i++) {
-        const t=bestRecognitionTranscript(event.results[i],interpreterNextLang);
-        if(event.results[i].isFinal) finalText += `${t} `; else partial += t;
+        if (event.results[i].isFinal) finalText += `${bestRecognitionTranscript(event.results[i],interpreterNextLang)} `;
       }
-      if (partial) document.getElementById('interpreterSourceText').textContent = partial;
       if (finalText.trim()) {
         handleInterpreterUtterance(finalText.trim(), interpreterNextLang);
         try { rec.stop(); } catch(e) {}
@@ -2249,7 +2270,10 @@ function startInterpreterRecognition() {
     };
     rec.onend = () => {
       if (interpreterRecognition===rec) interpreterRecognition=null;
-      if (interpreterActive && !interpreterBusy) scheduleInterpreterRecognition(100);
+      // An old recognizer can fire onend after the user has pressed Swap.
+      // Never let that stale callback schedule a competing session.
+      if (sessionToken!==interpreterSessionToken) return;
+      if (interpreterActive && !interpreterBusy) scheduleInterpreterRecognition(140);
     };
     rec.start();
   } catch (err) {
@@ -2260,7 +2284,7 @@ function startInterpreterRecognition() {
       document.getElementById('interpreterStatus').textContent = 'ไมโครโฟนไม่ได้รับอนุญาต กรุณาเปิดสิทธิ์ไมโครโฟนในการตั้งค่าเบราว์เซอร์';
     } else {
       document.getElementById('interpreterStatus').textContent = 'กำลังเชื่อมต่อไมโครโฟนใหม่…';
-      scheduleInterpreterRecognition(450);
+      scheduleInterpreterRecognition(700);
     }
   }
 }
@@ -2271,16 +2295,19 @@ async function handleInterpreterUtterance(text, sourceLang) {
   const selectedPatientLang=patientLanguage();
   const allowedLangs=new Set(['th',selectedPatientLang]);
   const detected=detectInterpreterLanguage(text,expectedTurnLang);
+  // SpeechRecognition was configured with the selected locale. Trust that locale
+  // unless the transcript is unmistakably written in a third script.
+  const scriptMismatch=(detected!==expectedTurnLang && /[\u4E00-\u9FFF\u1000-\u109F\u0E00-\u0E7F]/u.test(text));
+  sourceLang = scriptMismatch ? detected : expectedTurnLang;
   // Recognition is constrained to the selected pair; never send a third language
   // to the translator under the wrong source-language label.
-  if (!allowedLangs.has(detected)) {
+  if (!allowedLangs.has(sourceLang)) {
     interpreterBusy=false;
     document.getElementById('interpreterSourceText').textContent=text;
     document.getElementById('interpreterStatus').textContent=`ตรวจพบ ${languageLabel(detected)} ซึ่งไม่อยู่ในคู่ภาษาที่เลือก · กรุณาพูด ${languageLabel(expectedTurnLang)} หรือกดสลับภาษา`;
     updateInterpreterTurn();
     return;
   }
-  sourceLang=detected;
   interpreterBusy = true; updateInterpreterTurn();
   const targetLang = sourceLang === 'th' ? selectedPatientLang : 'th';
   document.getElementById('interpreterSourceText').textContent = text;
@@ -2338,7 +2365,7 @@ function splitInterpreterSpeech(text, limit=150) {
   return parts;
 }
 function interpreterSpeechWatchdog(text) {
-  return Math.max(30000,Math.min(60000,String(text || '').length*250));
+  return Math.max(8000,Math.min(15000,String(text || '').length*140));
 }
 function speakInterpreterGoogleChunk(text, lang) {
   return new Promise(resolve => {
@@ -2411,8 +2438,9 @@ async function interpreterSpeak(text, lang) {
   const synth=window.speechSynthesis;
   const locale=speechLocale(lang);
   if (synth) { try { synth.cancel(); } catch(e) {} }
-  // Thai interpreter output uses the verified Google TTS endpoint directly;
-  // some browsers expose a Thai voice but produce no audible output.
+  // Keep v6 behavior for Thai: Google/proxy is attempted first because it
+  // gives consistent Thai pronunciation. Native Thai voice is the fallback
+  // for Safari/Android when remote audio is blocked by autoplay policy.
   if (lang === 'th') {
     for (const chunk of chunks) {
       if (!interpreterActive) return;
@@ -2441,12 +2469,15 @@ function speakInterpreterTranslation() {
 }
 function restartInterpreterRecognitionForNewTurn() {
   if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
+  // Invalidate every callback belonging to the previous language session.
+  interpreterSessionToken++;
   const old=interpreterRecognition;
   interpreterRecognition=null;
   try { if(old) old.onend=null; if(old) old.abort(); } catch(e) {}
   interpreterBusy=false;
   updateInterpreterTurn();
-  scheduleInterpreterRecognition(220);
+  // Safari/Chrome both need a short stop/start gap after abort().
+  scheduleInterpreterRecognition(520);
 }
 function switchInterpreterTurn() {
   if (!interpreterActive || interpreterBusy) return;
