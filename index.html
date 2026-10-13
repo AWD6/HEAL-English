@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <link rel="stylesheet" href="style.css?v=iphonefix1">
+  <link rel="stylesheet" href="style.css?v=stable-v6">
 </head>
 <body>
 
@@ -308,13 +308,6 @@
           <button class="interpreter-stop" id="interpreterStopBtn" onclick="stopInterpreter()" disabled><i class="fas fa-stop"></i> หยุด</button>
           <button class="interpreter-swap" id="interpreterSwapBtn" onclick="switchInterpreterTurn()" disabled><i class="fas fa-repeat"></i> สลับภาษาที่ฟังเอง</button>
         </div>
-        <div class="interpreter-manual" id="interpreterManual" hidden>
-          <label for="interpreterManualInput">โหมดสำรองสำหรับ iPhone / Safari: พิมพ์ประโยคแทนการกดไมค์</label>
-          <div class="interpreter-manual-row">
-            <input id="interpreterManualInput" type="text" autocomplete="off" placeholder="พิมพ์ประโยคที่ต้องการแปล...">
-            <button type="button" onclick="submitInterpreterManual()"><i class="fas fa-paper-plane"></i> แปล</button>
-          </div>
-        </div>
         <p class="interpreter-disclaimer"><i class="fas fa-circle-info"></i> ต้องอนุญาตไมโครโฟนและใช้ผ่าน HTTPS/localhost; ระบบจำกัดการแปลไว้เฉพาะคู่ไทยกับภาษาที่เลือก และการรู้จำเสียงยังขึ้นกับภาษา/ความสามารถของเบราว์เซอร์ ข้อความส่งไป Google Translate เพื่อแปล โปรดหลีกเลี่ยงข้อมูลระบุตัวตนและตรวจทานก่อนใช้ทางการแพทย์</p>
       </section>
     </div>
@@ -428,6 +421,6 @@
 
 <script src="vendor/pinyin-pro.min.js"></script>
 <script src="translations.js"></script>
-<script src="script.js?v=iphonefix1"></script>
+<script src="script.js?v=stable-v6"></script>
 </body>
 </html>
