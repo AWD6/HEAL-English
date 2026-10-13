@@ -952,6 +952,20 @@ async function gTranslate(text, sl, tl) {
   if (translationTasks.has(key)) return translationTasks.get(key);
   const task=(async()=>{
     const query=`sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}&dt=t&q=${encodeURIComponent(source)}`;
+    // JSONP through the existing Apps Script deployment avoids Safari's
+    // cross-origin fetch restrictions on GitHub Pages.
+    try {
+      const response=await requestAppsScript('translate',{sl,tl,q:source},9000);
+      if (response?.ok && Array.isArray(response.data?.[0])) {
+        const translated=response.data[0].map(row=>row?.[0] || '').join('').trim();
+        if (translated) {
+          translationMemory.set(key,translated);
+          if (translationMemory.size>250) translationMemory.delete(translationMemory.keys().next().value);
+          return translated;
+        }
+      }
+      if (response?.error) throw new Error(response.error);
+    } catch(error) { console.warn('Apps Script translation proxy unavailable; trying browser endpoints.',error); }
     // The two public Google hosts are equivalent, but one can be temporarily
     // unavailable or rate-limited from a particular GitHub Pages region.
     // Safari blocks cross-origin fetches to Google's translate endpoint.
@@ -988,6 +1002,25 @@ async function gTranslate(text, sl, tl) {
   })();
   translationTasks.set(key,task);
   try { return await task; } finally { translationTasks.delete(key); }
+}
+
+function requestAppsScript(action, params={}, timeoutMs=10000) {
+  return new Promise((resolve,reject)=>{
+    const callback=`__healAppsScript_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script=document.createElement('script');
+    const query=new URLSearchParams({action,callback,...params});
+    let settled=false;
+    const cleanup=()=>{
+      if(settled) return;
+      settled=true; clearTimeout(timer); delete window[callback]; script.remove();
+    };
+    const timer=setTimeout(()=>{cleanup();reject(new Error('Apps Script timeout'));},timeoutMs);
+    window[callback]=value=>{cleanup();resolve(value);};
+    script.onerror=()=>{cleanup();reject(new Error('Apps Script request failed'));};
+    script.src=`${GOOGLE_SHEETS_ENDPOINT}?${query.toString()}`;
+    script.async=true;
+    document.head.appendChild(script);
+  });
 }
 
 /* ── Phonetics (อัปเกรดระบบเดาคำอ่าน) ───────────────────────── */
@@ -1907,6 +1940,17 @@ async function playInterpreterDecodedAudio(text, lang) {
   const ctx=interpreterAudioContext, gain=interpreterAudioGain;
   if (!ctx || !gain || !text) return false;
   const configuredApi=String(window.HEAL_TRANSLATOR_API_BASE || '').replace(/\/+$/,'');
+  if (!configuredApi) {
+    try {
+      const result=await requestAppsScript('tts',{tl:lang,q:text},10000);
+      if (result?.ok && result.audio) {
+        const binary=atob(result.audio), bytes=new Uint8Array(binary.length);
+        for (let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+        const decoded=await playDecodedInterpreterBuffer(bytes.buffer,ctx,gain);
+        if (decoded) return true;
+      }
+    } catch(error) { console.warn('Apps Script speech proxy unavailable; trying browser audio.',error); }
+  }
   const urls=configuredApi ? [configuredApi+'/google-tts?tl='+encodeURIComponent(lang)+'&q='+encodeURIComponent(text)] : [];
   if (!configuredApi) urls.push('https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl='+encodeURIComponent(lang)+'&q='+encodeURIComponent(text));
   let data=null;
@@ -1937,6 +1981,27 @@ async function playInterpreterDecodedAudio(text, lang) {
       let finished=false;
       const finish=ok=>{if(finished)return;finished=true;if(interpreterAudioSource===source)interpreterAudioSource=null;resolve(ok);};
       source.onended=()=>finish(true);
+      const timer=setTimeout(()=>{try{source.stop()}catch(e){};finish(false)},Math.max(2600,Math.min(9000,buffer.duration*1000+1200)));
+      source.onended=()=>{clearTimeout(timer);finish(true)};
+      try { source.start(0); } catch(e) { clearTimeout(timer); finish(false); }
+    });
+  } catch(e) { return false; }
+}
+async function playDecodedInterpreterBuffer(data,ctx,gain) {
+  try {
+    if (ctx.state==='suspended') {
+      const resumed=await Promise.race([
+        ctx.resume().then(()=>true).catch(()=>false),
+        new Promise(resolve=>setTimeout(()=>resolve(false),1000))
+      ]);
+      if (!resumed || ctx.state!=='running') return false;
+    }
+    const buffer=await ctx.decodeAudioData(data.slice(0));
+    if (interpreterAudioSource) { try { interpreterAudioSource.stop(); } catch(e) {} }
+    const source=ctx.createBufferSource(); source.buffer=buffer; source.connect(gain); interpreterAudioSource=source;
+    return await new Promise(resolve=>{
+      let finished=false;
+      const finish=ok=>{if(finished)return;finished=true;if(interpreterAudioSource===source)interpreterAudioSource=null;resolve(ok);};
       const timer=setTimeout(()=>{try{source.stop()}catch(e){};finish(false)},Math.max(2600,Math.min(9000,buffer.duration*1000+1200)));
       source.onended=()=>{clearTimeout(timer);finish(true)};
       try { source.start(0); } catch(e) { clearTimeout(timer); finish(false); }
@@ -2050,7 +2115,16 @@ function playGoogleTts(text, tl, useInterpreterAudio=false) {
       if (audio.readyState>=3) start();
       else audio.addEventListener('canplay',start,{once:true});
     };
-    loadAndPlay(url);
+    const startPlayback=async()=>{
+      if (!preparedPath && !configuredApi) {
+        try {
+          const result=await requestAppsScript('tts',{tl,q:text},10000);
+          if (result?.ok && result.audio) { loadAndPlay(`data:audio/mpeg;base64,${result.audio}`); return; }
+        } catch(error) { console.warn('Apps Script audio proxy unavailable; trying direct audio.',error); }
+      }
+      loadAndPlay(url);
+    };
+    startPlayback();
     return audio;
   } catch(e) {
     showSpeechNotice('ไม่สามารถเริ่มเสียงได้ โปรดตรวจระดับเสียงของอุปกรณ์');
