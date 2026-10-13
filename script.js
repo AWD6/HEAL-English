@@ -400,6 +400,9 @@ let currentQuizOpts = [];
 let speechRate = 0.75;
 let currentGoogleAudio = null;
 let interpreterPrimedAudio = null;
+let interpreterAudioContext = null;
+let interpreterAudioGain = null;
+let interpreterAudioSource = null;
 let speechNoticeTimer = null;
 let currentRoom = '';
 let roomChangeOnly = false;
@@ -1882,6 +1885,67 @@ function makeSilentWavDataUri() {
   view.setUint16(32,2,true); view.setUint16(34,16,true); text(36,'data'); view.setUint32(40,dataBytes,true);
   return 'data:audio/wav;base64,'+btoa(String.fromCharCode(...bytes));
 }
+function primeInterpreterAudioContext() {
+  try {
+    const Ctx=window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return false;
+    if (!interpreterAudioContext) {
+      interpreterAudioContext=new Ctx();
+      interpreterAudioGain=interpreterAudioContext.createGain();
+      // Google TTS files are often quiet on iOS. Keep the browser volume at
+      // 100% and add a moderate gain without clipping normal speech.
+      interpreterAudioGain.gain.value=1.55;
+      interpreterAudioGain.connect(interpreterAudioContext.destination);
+    }
+    if (interpreterAudioContext.state==='suspended') interpreterAudioContext.resume().catch(()=>{});
+    const buffer=interpreterAudioContext.createBuffer(1,1,22050);
+    const source=interpreterAudioContext.createBufferSource();
+    source.buffer=buffer; source.connect(interpreterAudioGain); source.start(0);
+    return true;
+  } catch(e) { return false; }
+}
+async function playInterpreterDecodedAudio(text, lang) {
+  const ctx=interpreterAudioContext, gain=interpreterAudioGain;
+  if (!ctx || !gain || !text) return false;
+  const configuredApi=String(window.HEAL_TRANSLATOR_API_BASE || '').replace(/\/+$/,'');
+  const origin=configuredApi || location.origin;
+  const urls=[origin+'/google-tts?tl='+encodeURIComponent(lang)+'&q='+encodeURIComponent(text)];
+  if (!configuredApi) urls.push('https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl='+encodeURIComponent(lang)+'&q='+encodeURIComponent(text));
+  let data=null;
+  for (const url of urls) {
+    try {
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),5000);
+      const res=await fetch(url,{cache:'no-store',signal:controller.signal});
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      data=await res.arrayBuffer();
+      if (data.byteLength) break;
+    } catch(e) {}
+  }
+  if (!data) return false;
+  try {
+    if (ctx.state==='suspended') {
+      const resumed=await Promise.race([
+        ctx.resume().then(()=>true).catch(()=>false),
+        new Promise(resolve=>setTimeout(()=>resolve(false),700))
+      ]);
+      if (!resumed || ctx.state!=='running') return false;
+    }
+    const buffer=await ctx.decodeAudioData(data.slice(0));
+    if (interpreterAudioSource) { try { interpreterAudioSource.stop(); } catch(e) {} }
+    const source=ctx.createBufferSource(); source.buffer=buffer; source.connect(gain); interpreterAudioSource=source;
+    return await new Promise(resolve=>{
+      let finished=false;
+      const finish=ok=>{if(finished)return;finished=true;if(interpreterAudioSource===source)interpreterAudioSource=null;resolve(ok);};
+      source.onended=()=>finish(true);
+      const timer=setTimeout(()=>{try{source.stop()}catch(e){};finish(false)},Math.max(2600,Math.min(9000,buffer.duration*1000+1200)));
+      source.onended=()=>{clearTimeout(timer);finish(true)};
+      try { source.start(0); } catch(e) { clearTimeout(timer); finish(false); }
+    });
+  } catch(e) { return false; }
+}
+
 function primeGoogleAudioPlayback() {
   try {
     if (currentGoogleAudio) currentGoogleAudio.pause();
@@ -2234,6 +2298,7 @@ function startInterpreter() {
   interpreterSessionToken++;
   interpreterActive = true; interpreterBusy = false;
   interpreterNextLang = document.getElementById('interpreterFirstTurn').value === 'patient' ? patientLanguage() : 'th';
+  primeInterpreterAudioContext();
   primeGoogleAudioPlayback();
   document.getElementById('interpreterStartBtn').disabled = true;
   document.getElementById('interpreterStopBtn').disabled = false;
@@ -2378,7 +2443,13 @@ function interpreterSpeechWatchdog(text) {
   // Do not block the next listening turn on a browser audio event.
   return Math.max(2600,Math.min(5000,String(text || '').length*55));
 }
-function speakInterpreterGoogleChunk(text, lang) {
+async function speakInterpreterGoogleChunk(text, lang) {
+  // This path is unlocked by startInterpreter() and is reliable after an
+  // asynchronous translation on iOS Safari; HTMLAudioElement.play() is not.
+  if (interpreterAudioContext) {
+    const decoded=await playInterpreterDecodedAudio(text,lang);
+    if (decoded) return true;
+  }
   return new Promise(resolve => {
     const audio=playGoogleTts(text,lang,true);
     if (!audio) { resolve(false); return; }
@@ -2501,6 +2572,8 @@ function stopInterpreter() {
   const activeAudio=currentGoogleAudio;
   if(activeAudio){if(activeAudio._interpreterFinish)activeAudio._interpreterFinish();activeAudio.pause();currentGoogleAudio=null;}
   if(interpreterPrimedAudio){if(interpreterPrimedAudio!==activeAudio)interpreterPrimedAudio.pause();interpreterPrimedAudio=null;}
+  if(interpreterAudioSource){try{interpreterAudioSource.stop()}catch(e){} interpreterAudioSource=null;}
+  if(interpreterAudioContext && interpreterAudioContext.state==='running') interpreterAudioContext.suspend().catch(()=>{});
   document.getElementById('interpreterStartBtn').disabled = false;
   document.getElementById('interpreterStopBtn').disabled = true;
   document.getElementById('interpreterSwapBtn').disabled = true;
