@@ -958,16 +958,15 @@ async function gTranslate(text, sl, tl) {
     // Use the same-origin server proxy first; static GitHub Pages will skip
     // the 404 proxy and retain the direct fallback for browsers that allow it.
     const configuredApi=String(window.HEAL_TRANSLATOR_API_BASE || '').replace(/\/+$/,'');
-    const apiOrigin=configuredApi || location.origin;
-    const localEndpoint=/^https?:$/.test(location.protocol)
-      ? `${apiOrigin}/translate?${query}` : '';
+    const localEndpoint=configuredApi
+      ? `${configuredApi}/translate?${query}` : '';
     const endpoints=[
       ...(localEndpoint ? [localEndpoint] : []),
       `https://translate.googleapis.com/translate_a/single?client=gtx&${query}`,
       `https://translate.google.com/translate_a/single?client=gtx&${query}`
     ];
     let lastError;
-    for (let attempt=0;attempt<3;attempt++) {
+    for (let attempt=0;attempt<4;attempt++) {
       const url=endpoints[attempt % endpoints.length];
       const controller=new AbortController();
       const timeout=setTimeout(()=>controller.abort(),4000);
@@ -982,7 +981,7 @@ async function gTranslate(text, sl, tl) {
         return translated;
       } catch(error) {
         lastError=error;
-        if(attempt<2) await new Promise(resolve=>setTimeout(resolve,180));
+        if(attempt<3) await new Promise(resolve=>setTimeout(resolve,250*(attempt+1)));
       } finally { clearTimeout(timeout); }
     }
     throw new Error(`Translation unavailable (${lastError?.message || 'network'})`);
@@ -1908,8 +1907,7 @@ async function playInterpreterDecodedAudio(text, lang) {
   const ctx=interpreterAudioContext, gain=interpreterAudioGain;
   if (!ctx || !gain || !text) return false;
   const configuredApi=String(window.HEAL_TRANSLATOR_API_BASE || '').replace(/\/+$/,'');
-  const origin=configuredApi || location.origin;
-  const urls=[origin+'/google-tts?tl='+encodeURIComponent(lang)+'&q='+encodeURIComponent(text)];
+  const urls=configuredApi ? [configuredApi+'/google-tts?tl='+encodeURIComponent(lang)+'&q='+encodeURIComponent(text)] : [];
   if (!configuredApi) urls.push('https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl='+encodeURIComponent(lang)+'&q='+encodeURIComponent(text));
   let data=null;
   for (const url of urls) {
@@ -2006,9 +2004,8 @@ function playGoogleTts(text, tl, useInterpreterAudio=false) {
     // The preview/deployed app can provide /google-tts as a same-origin proxy;
     // this avoids Chromium blocking Google's audio host while retaining direct fallback.
     const configuredApi=String(window.HEAL_TRANSLATOR_API_BASE || '').replace(/\/+$/,'');
-    const apiOrigin=configuredApi || location.origin;
-    const proxyUrl=(!preparedPath && /^https?:$/.test(location.protocol))
-      ? apiOrigin+'/google-tts?tl='+encodeURIComponent(tl)+'&q='+encodeURIComponent(text) : '';
+    const proxyUrl=(!preparedPath && configuredApi)
+      ? configuredApi+'/google-tts?tl='+encodeURIComponent(tl)+'&q='+encodeURIComponent(text) : '';
     // Keep the v6 route: same-origin proxy first (works reliably on the
     // supplied server.py), then Google's direct audio as a browser fallback.
     const url=proxyUrl || directUrl;
