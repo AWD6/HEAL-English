@@ -1886,7 +1886,7 @@ function primeGoogleAudioPlayback() {
   try {
     if (currentGoogleAudio) currentGoogleAudio.pause();
     if (interpreterPrimedAudio && interpreterPrimedAudio!==currentGoogleAudio) interpreterPrimedAudio.pause();
-    const audio=new Audio(makeSilentWavDataUri()); audio.volume=0; currentGoogleAudio=audio; interpreterPrimedAudio=audio;
+    const audio=new Audio(makeSilentWavDataUri()); audio.setAttribute('playsinline',''); audio.volume=0; currentGoogleAudio=audio; interpreterPrimedAudio=audio;
     const attempt=audio.play();
     if (attempt && typeof attempt.then==='function') {
       attempt.then(()=>{audio.pause();audio.currentTime=0;audio.volume=1;audio.dataset.userActivated='true';})
@@ -1955,7 +1955,7 @@ function playGoogleTts(text, tl, useInterpreterAudio=false) {
     if (currentGoogleAudio && currentGoogleAudio!==audio) currentGoogleAudio.pause();
     audio.pause();
     try { audio.currentTime=0; } catch(e) {}
-    audio.preload='auto'; audio.volume=1;
+    audio.setAttribute('playsinline',''); audio.preload='auto'; audio.volume=1;
     audio.playbackRate=Math.min(2.0,Math.max(0.5,speechRate+0.1));
     currentGoogleAudio=audio;
     audio.addEventListener('playing',()=>{
@@ -2449,27 +2449,21 @@ async function interpreterSpeak(text, lang) {
   const chunks=splitInterpreterSpeech(text);
   if (!chunks.length) return;
   const synth=window.speechSynthesis;
-  const locale=speechLocale(lang);
   if (synth) { try { synth.cancel(); } catch(e) {} }
-  // Keep v6 behavior for Thai: Google/proxy is attempted first because it
-  // gives consistent Thai pronunciation. Native Thai voice is the fallback
-  // for Safari/Android when remote audio is blocked by autoplay policy.
-  if (lang === 'th') {
-    for (const chunk of chunks) {
-      if (!interpreterActive) return;
-      const played=await speakInterpreterGoogleChunk(chunk,'th');
-      if (!played && synth) {
-        const thaiVoice=await getInterpreterVoice(synth,'th','th-TH');
-        if (thaiVoice) await speakInterpreterNativeChunk(chunk,'th','th-TH',thaiVoice);
-      }
-    }
-    return;
-  }
-  const voice=await getInterpreterVoice(synth,lang,locale);
+  // Use the already-unlocked Google/proxy audio element for every translated
+  // language. Safari can expose a SpeechSynthesis voice but still produce no
+  // sound after an async translation; Google TTS is the consistent primary.
+  // Native voice remains a fallback for English/Chinese/Thai when audio is
+  // blocked by a browser policy. Burmese stays on Google TTS because native
+  // Burmese voices are not consistently available on iOS/Android.
   for (const chunk of chunks) {
     if (!interpreterActive) return;
-    if (synth && voice && lang!=='my') await speakInterpreterNativeChunk(chunk,lang,locale,voice);
-    else await speakInterpreterGoogleChunk(chunk,lang);
+    const played=await speakInterpreterGoogleChunk(chunk,lang);
+    if (!played && synth && lang !== 'my') {
+      const locale=speechLocale(lang);
+      const voice=await getInterpreterVoice(synth,lang,locale);
+      if (voice) await speakInterpreterNativeChunk(chunk,lang,locale,voice);
+    }
   }
 }
 function speakInterpreterSource() {
