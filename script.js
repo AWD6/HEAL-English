@@ -951,12 +951,18 @@ async function gTranslate(text, sl, tl) {
     const query=`sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}&dt=t&q=${encodeURIComponent(source)}`;
     // The two public Google hosts are equivalent, but one can be temporarily
     // unavailable or rate-limited from a particular GitHub Pages region.
+    // Safari blocks cross-origin fetches to Google's translate endpoint.
+    // Use the same-origin server proxy first; static GitHub Pages will skip
+    // the 404 proxy and retain the direct fallback for browsers that allow it.
+    const localEndpoint=/^https?:$/.test(location.protocol)
+      ? `${location.origin}/translate?${query}` : '';
     const endpoints=[
+      ...(localEndpoint ? [localEndpoint] : []),
       `https://translate.googleapis.com/translate_a/single?client=gtx&${query}`,
       `https://translate.google.com/translate_a/single?client=gtx&${query}`
     ];
     let lastError;
-    for (let attempt=0;attempt<2;attempt++) {
+    for (let attempt=0;attempt<3;attempt++) {
       const url=endpoints[attempt % endpoints.length];
       const controller=new AbortController();
       const timeout=setTimeout(()=>controller.abort(),5500);
@@ -971,7 +977,7 @@ async function gTranslate(text, sl, tl) {
         return translated;
       } catch(error) {
         lastError=error;
-        if(attempt<1) await new Promise(resolve=>setTimeout(resolve,180));
+        if(attempt<2) await new Promise(resolve=>setTimeout(resolve,180));
       } finally { clearTimeout(timeout); }
     }
     throw new Error(`Translation unavailable (${lastError?.message || 'network'})`);
