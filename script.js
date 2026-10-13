@@ -403,6 +403,7 @@ let interpreterPrimedAudio = null;
 let interpreterAudioContext = null;
 let interpreterAudioGain = null;
 let interpreterAudioSource = null;
+let interpreterPendingTtsFallback = null;
 let speechNoticeTimer = null;
 let currentRoom = '';
 let roomChangeOnly = false;
@@ -412,6 +413,7 @@ let interpreterSessionToken = 0;
 let interpreterNextLang = 'th';
 let interpreterRecognition = null;
 let interpreterRestartTimer = null;
+let interpreterFinalizeTimer = null;
 let interpreterLocaleFallbackIndex = 0;
 const myTranslationTasks = new Map();
 const translationMemory = new Map();
@@ -1940,18 +1942,21 @@ function primeInterpreterAudioContext() {
 async function playInterpreterDecodedAudio(text, lang) {
   const ctx=interpreterAudioContext, gain=interpreterAudioGain;
   if (!ctx || !gain || !text) return false;
+  interpreterPendingTtsFallback=null;
   const configuredApi=String(window.HEAL_TRANSLATOR_API_BASE || '').replace(/\/+$/,'');
   if (!configuredApi) {
     try {
       const result=await requestAppsScript('tts',{tl:lang,q:text},10000);
       if (result?.ok && result.audio) {
+        interpreterPendingTtsFallback={key:`${lang}\u0000${text}`,src:`data:audio/mpeg;base64,${result.audio}`};
         const binary=atob(result.audio), bytes=new Uint8Array(binary.length);
         for (let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
         const decoded=await playDecodedInterpreterBuffer(bytes.buffer,ctx,gain);
-        if (decoded) return true;
+        if (decoded) { interpreterPendingTtsFallback=null; return true; }
       }
     } catch(error) { console.warn('Apps Script speech proxy unavailable; trying browser audio.',error); }
   }
+  if (interpreterPendingTtsFallback?.key===`${lang}\u0000${text}`) return false;
   const urls=configuredApi ? [configuredApi+'/google-tts?tl='+encodeURIComponent(lang)+'&q='+encodeURIComponent(text)] : [];
   if (!configuredApi) urls.push('https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl='+encodeURIComponent(lang)+'&q='+encodeURIComponent(text));
   let data=null;
@@ -2060,7 +2065,7 @@ function playNativeFallback(text, lang) {
 }
 
 /* ── Burmese: local WAV for prepared phrases; Google TTS for new text ─ */
-function playGoogleTts(text, tl, useInterpreterAudio=false) {
+function playGoogleTts(text, tl, useInterpreterAudio=false, preloadedSource='') {
   if (!text) return null;
   try {
     const preparedPath=tl==='my' ? PREBUILT_MY_AUDIO_BY_TEXT[String(text).trim()] : '';
@@ -2105,7 +2110,10 @@ function playGoogleTts(text, tl, useInterpreterAudio=false) {
         if (attempt && attempt.catch) attempt.catch(err=>{
           // Keep the same-origin proxy on autoplay denial; a later user tap can
           // replay this valid audio. Do not replace it with the blocked host.
-          if (err?.name==='NotAllowedError') return;
+          if (err?.name==='NotAllowedError') {
+            if (useInterpreterAudio) audio.dispatchEvent(new Event('interpreterplayblocked'));
+            return;
+          }
           if (backupUrl && retryCount===0) { retryCount++; loadAndPlay(backupUrl); return; }
           if (tl==='th' && playNativeFallback(text,'th')) return;
           if (useInterpreterAudio && tl==='th') return;
@@ -2117,6 +2125,7 @@ function playGoogleTts(text, tl, useInterpreterAudio=false) {
       else audio.addEventListener('canplay',start,{once:true});
     };
     const startPlayback=async()=>{
+      if (preloadedSource) { loadAndPlay(preloadedSource); return; }
       if (!preparedPath && !configuredApi) {
         try {
           const result=await requestAppsScript('tts',{tl,q:text},10000);
@@ -2407,16 +2416,25 @@ function startInterpreterRecognition() {
     const localeOptions=speechLocaleOptions(interpreterNextLang);
     rec.lang = localeOptions[Math.min(interpreterLocaleFallbackIndex,localeOptions.length-1)];
     rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 5;
+    const finalSegments=new Map();
     rec.onstart = () => { if(sessionToken!==interpreterSessionToken || interpreterRecognition!==rec) return; document.getElementById('interpreterStatus').textContent = `กำลังฟัง ${languageLabel(interpreterNextLang)}…`; updateInterpreterTurn(); };
     rec.onresult = event => {
       if (sessionToken!==interpreterSessionToken || interpreterRecognition!==rec || !interpreterActive) return;
-      let finalText = '';
+      let partialText = '';
       for (let i=event.resultIndex;i<event.results.length;i++) {
-        if (event.results[i].isFinal) finalText += `${bestRecognitionTranscript(event.results[i],interpreterNextLang)} `;
+        const transcript=bestRecognitionTranscript(event.results[i],interpreterNextLang);
+        if (event.results[i].isFinal && transcript) finalSegments.set(i,transcript);
+        else if (transcript) partialText += `${transcript} `;
       }
-      if (finalText.trim()) {
-        handleInterpreterUtterance(finalText.trim(), interpreterNextLang);
-        try { rec.stop(); } catch(e) {}
+      if (partialText.trim()) document.getElementById('interpreterSourceText').textContent=partialText.trim();
+      if (finalSegments.size) {
+        if (interpreterFinalizeTimer) clearTimeout(interpreterFinalizeTimer);
+        interpreterFinalizeTimer=setTimeout(()=>{
+          interpreterFinalizeTimer=null;
+          if (sessionToken===interpreterSessionToken && interpreterRecognition===rec) {
+            try { rec.stop(); } catch(e) {}
+          }
+        },450);
       }
     };
     rec.onerror = event => {
@@ -2442,6 +2460,12 @@ function startInterpreterRecognition() {
       // An old recognizer can fire onend after the user has pressed Swap.
       // Never let that stale callback schedule a competing session.
       if (sessionToken!==interpreterSessionToken) return;
+      if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
+      const completeText=Array.from(finalSegments.entries()).sort((a,b)=>a[0]-b[0]).map(([,part])=>part).join(' ').trim();
+      if (completeText && interpreterActive && !interpreterBusy) {
+        handleInterpreterUtterance(completeText,interpreterNextLang);
+        return;
+      }
       if (interpreterActive && !interpreterBusy) scheduleInterpreterRecognition(140);
     };
     rec.start();
@@ -2534,8 +2558,7 @@ function splitInterpreterSpeech(text, limit=150) {
   return parts;
 }
 function interpreterSpeechWatchdog(text) {
-  // Do not block the next listening turn on a browser audio event.
-  return Math.max(2600,Math.min(5000,String(text || '').length*55));
+  return Math.max(12000,Math.min(60000,String(text || '').length*260));
 }
 async function speakInterpreterGoogleChunk(text, lang) {
   // This path is unlocked by startInterpreter() and is reliable after an
@@ -2544,10 +2567,17 @@ async function speakInterpreterGoogleChunk(text, lang) {
     const decoded=await playInterpreterDecodedAudio(text,lang);
     if (decoded) return true;
   }
+  const cachedTts=interpreterPendingTtsFallback;
+  interpreterPendingTtsFallback=null;
+  const cachedSource=cachedTts?.key===`${lang}\u0000${text}` ? cachedTts.src : '';
   return new Promise(resolve => {
-    const audio=playGoogleTts(text,lang,true);
+    const audio=playGoogleTts(text,lang,true,cachedSource);
     if (!audio) { resolve(false); return; }
     let finished=false, watchdog=null, ok=false;
+    const armWatchdog=(delay,success)=>{
+      if (watchdog) clearTimeout(watchdog);
+      watchdog=setTimeout(()=>done(success),delay);
+    };
     const done=(success=false)=>{
       if (finished) return;
       finished=true; ok=success;
@@ -2556,13 +2586,22 @@ async function speakInterpreterGoogleChunk(text, lang) {
       resolve(ok);
     };
     audio._interpreterFinish=done;
-    audio.addEventListener('playing',()=>{ ok=true; },{once:true});
+    audio.addEventListener('playing',()=>{
+      ok=true;
+      const duration=Number.isFinite(audio.duration) && audio.duration>0 ? audio.duration*1000+2500 : interpreterSpeechWatchdog(text);
+      armWatchdog(Math.max(8000,Math.min(60000,duration)),true);
+    },{once:true});
     audio.addEventListener('ended',()=>done(true),{once:true});
     audio.addEventListener('error',()=>done(false),{once:true});
+    audio.addEventListener('interpreterplayblocked',()=>done(false),{once:true});
     // playPromise is assigned asynchronously after canplay on Safari; attach
     // a short safety timer so a blocked audio element cannot stop recognition.
-    if (audio.playPromise && typeof audio.playPromise.catch==='function') audio.playPromise.catch(()=>done(false));
-    watchdog=setTimeout(()=>done(ok),interpreterSpeechWatchdog(text));
+    const checkPlayPromise=()=>{
+      if (audio.playPromise && typeof audio.playPromise.catch==='function') audio.playPromise.catch(()=>done(false));
+    };
+    if (audio.readyState>=3) checkPlayPromise();
+    else audio.addEventListener('canplay',checkPlayPromise,{once:true});
+    armWatchdog(interpreterSpeechWatchdog(text),false);
   });
 }
 function speakInterpreterNativeChunk(text, lang, locale, voice) {
@@ -2641,6 +2680,7 @@ function speakInterpreterTranslation() {
 }
 function restartInterpreterRecognitionForNewTurn() {
   if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
+  if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
   // Invalidate every callback belonging to the previous language session.
   interpreterSessionToken++;
   interpreterLocaleFallbackIndex=0;
@@ -2662,12 +2702,14 @@ function stopInterpreter() {
   interpreterSessionToken++;
   interpreterActive = false; interpreterBusy = false;
   if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
+  if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
   try { if(interpreterRecognition) interpreterRecognition.abort(); } catch(e) {}
   if(window.speechSynthesis) window.speechSynthesis.cancel();
   const activeAudio=currentGoogleAudio;
   if(activeAudio){if(activeAudio._interpreterFinish)activeAudio._interpreterFinish();activeAudio.pause();currentGoogleAudio=null;}
   if(interpreterPrimedAudio){if(interpreterPrimedAudio!==activeAudio)interpreterPrimedAudio.pause();interpreterPrimedAudio=null;}
   if(interpreterAudioSource){try{interpreterAudioSource.stop()}catch(e){} interpreterAudioSource=null;}
+  interpreterPendingTtsFallback=null;
   if(interpreterAudioContext && interpreterAudioContext.state==='running') interpreterAudioContext.suspend().catch(()=>{});
   document.getElementById('interpreterStartBtn').disabled = false;
   document.getElementById('interpreterStopBtn').disabled = true;
