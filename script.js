@@ -954,8 +954,10 @@ async function gTranslate(text, sl, tl) {
     // Safari blocks cross-origin fetches to Google's translate endpoint.
     // Use the same-origin server proxy first; static GitHub Pages will skip
     // the 404 proxy and retain the direct fallback for browsers that allow it.
+    const configuredApi=String(window.HEAL_TRANSLATOR_API_BASE || '').replace(/\/+$/,'');
+    const apiOrigin=configuredApi || location.origin;
     const localEndpoint=/^https?:$/.test(location.protocol)
-      ? `${location.origin}/translate?${query}` : '';
+      ? `${apiOrigin}/translate?${query}` : '';
     const endpoints=[
       ...(localEndpoint ? [localEndpoint] : []),
       `https://translate.googleapis.com/translate_a/single?client=gtx&${query}`,
@@ -965,7 +967,7 @@ async function gTranslate(text, sl, tl) {
     for (let attempt=0;attempt<3;attempt++) {
       const url=endpoints[attempt % endpoints.length];
       const controller=new AbortController();
-      const timeout=setTimeout(()=>controller.abort(),5500);
+      const timeout=setTimeout(()=>controller.abort(),4000);
       try {
         const res=await fetch(url,{signal:controller.signal,cache:'no-store'});
         if(!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1939,8 +1941,10 @@ function playGoogleTts(text, tl, useInterpreterAudio=false) {
         +'&tl='+encodeURIComponent(tl)+'&q='+encodeURIComponent(text);
     // The preview/deployed app can provide /google-tts as a same-origin proxy;
     // this avoids Chromium blocking Google's audio host while retaining direct fallback.
+    const configuredApi=String(window.HEAL_TRANSLATOR_API_BASE || '').replace(/\/+$/,'');
+    const apiOrigin=configuredApi || location.origin;
     const proxyUrl=(!preparedPath && /^https?:$/.test(location.protocol))
-      ? location.origin+'/google-tts?tl='+encodeURIComponent(tl)+'&q='+encodeURIComponent(text) : '';
+      ? apiOrigin+'/google-tts?tl='+encodeURIComponent(tl)+'&q='+encodeURIComponent(text) : '';
     // Keep the v6 route: same-origin proxy first (works reliably on the
     // supplied server.py), then Google's direct audio as a browser fallback.
     const url=proxyUrl || directUrl;
@@ -2371,7 +2375,8 @@ function splitInterpreterSpeech(text, limit=150) {
   return parts;
 }
 function interpreterSpeechWatchdog(text) {
-  return Math.max(8000,Math.min(15000,String(text || '').length*140));
+  // Do not block the next listening turn on a browser audio event.
+  return Math.max(2600,Math.min(5000,String(text || '').length*55));
 }
 function speakInterpreterGoogleChunk(text, lang) {
   return new Promise(resolve => {
@@ -2389,6 +2394,8 @@ function speakInterpreterGoogleChunk(text, lang) {
     audio.addEventListener('playing',()=>{ ok=true; },{once:true});
     audio.addEventListener('ended',()=>done(true),{once:true});
     audio.addEventListener('error',()=>done(false),{once:true});
+    // playPromise is assigned asynchronously after canplay on Safari; attach
+    // a short safety timer so a blocked audio element cannot stop recognition.
     if (audio.playPromise && typeof audio.playPromise.catch==='function') audio.playPromise.catch(()=>done(false));
     watchdog=setTimeout(()=>done(ok),interpreterSpeechWatchdog(text));
   });
