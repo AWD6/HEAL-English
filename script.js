@@ -403,7 +403,6 @@ let interpreterPrimedAudio = null;
 let interpreterAudioContext = null;
 let interpreterAudioGain = null;
 let interpreterAudioSource = null;
-let interpreterPendingTtsFallback = null;
 let speechNoticeTimer = null;
 let currentRoom = '';
 let roomChangeOnly = false;
@@ -1001,6 +1000,100 @@ async function gTranslate(text, sl, tl) {
         if(attempt<3) await new Promise(resolve=>setTimeout(resolve,250*(attempt+1)));
       } finally { clearTimeout(timeout); }
     }
+    throw new Error(`Translation unavailable (${lastError?.message || 'network'})`);
+  })();
+  translationTasks.set(key,task);
+  try { return await task; } finally { translationTasks.delete(key); }
+}
+
+// The live interpreter uses a fast translation route that does not probe the
+// Google Sheets Apps Script endpoint. That endpoint only records room usage,
+// so waiting for it before each spoken translation adds a long, useless delay.
+function findInterpreterPreparedTranslation(source, sl, tl) {
+  if (typeof scenarios === 'undefined' || !Array.isArray(scenarios)) return '';
+  const fields={th:'th',en:'en',zh:'zh','zh-CN':'zh',my:'my'};
+  const sourceField=fields[sl], targetField=fields[tl];
+  if (!sourceField || !targetField) return '';
+  const normalize=value=>String(value || '').normalize('NFKC').trim().toLocaleLowerCase()
+    .replace(/[.!?。！？၊။,，、;；:：]+/gu,' ').replace(/\s+/g,' ').trim();
+  const needle=normalize(source);
+  if (!needle) return '';
+  for (const scenario of scenarios) {
+    for (const phrase of scenario.phrases || []) {
+      if (phrase[targetField] && normalize(phrase[sourceField])===needle) return String(phrase[targetField]).trim();
+    }
+  }
+  return '';
+}
+async function fetchInterpreterTranslation(url, source, sl, tl, timeoutMs, controller=new AbortController()) {
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try {
+    const endpoint=new URL(url);
+    endpoint.searchParams.set('client','gtx');
+    endpoint.searchParams.set('sl',sl);
+    endpoint.searchParams.set('tl',tl);
+    endpoint.searchParams.set('dt','t');
+    endpoint.searchParams.set('q',source);
+    const response=await fetch(endpoint.href,{signal:controller.signal,cache:'no-store'});
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data=await response.json();
+    const translated=Array.isArray(data?.[0]) ? data[0].map(row=>row?.[0] || '').join('').trim() : '';
+    if (!translated) throw new Error('Empty translation response');
+    return translated;
+  } finally { clearTimeout(timer); }
+}
+function fetchInterpreterTranslationFromAny(endpoints, source, sl, tl, timeoutMs) {
+  const controllers=endpoints.map(()=>new AbortController());
+  return new Promise((resolve,reject)=>{
+    let failures=0, settled=false;
+    endpoints.forEach((url,index)=>{
+      fetchInterpreterTranslation(url,source,sl,tl,timeoutMs,controllers[index]).then(translated=>{
+        if (settled) return;
+        settled=true;
+        controllers.forEach((controller,i)=>{if(i!==index)controller.abort();});
+        resolve(translated);
+      }).catch(error=>{
+        if (settled) return;
+        failures++;
+        if (failures===endpoints.length) { settled=true; reject(error); }
+      });
+    });
+  });
+}
+async function translateInterpreterText(text, sl, tl) {
+  const source=String(text || '').trim();
+  if (!source) return '';
+  sl=sl==='zh' ? 'zh-CN' : sl;
+  tl=tl==='zh' ? 'zh-CN' : tl;
+  if (sl===tl) return source;
+  const key=`${sl}\u0000${tl}\u0000${source}`;
+  const prepared=findInterpreterPreparedTranslation(source,sl,tl);
+  if (prepared) {
+    translationMemory.set(key,prepared);
+    return prepared;
+  }
+  if (translationMemory.has(key)) return translationMemory.get(key);
+  if (translationTasks.has(key)) return translationTasks.get(key);
+  const task=(async()=>{
+    const configuredApi=String(window.HEAL_TRANSLATOR_API_BASE || '').replace(/\/+$/,'');
+    let lastError;
+    if (configuredApi) {
+      try {
+        const translated=await fetchInterpreterTranslation(`${configuredApi}/translate`,source,sl,tl,2800);
+        translationMemory.set(key,translated);
+        if (translationMemory.size>250) translationMemory.delete(translationMemory.keys().next().value);
+        return translated;
+      } catch(error) { lastError=error; }
+    }
+    try {
+      const translated=await fetchInterpreterTranslationFromAny([
+        'https://translate.googleapis.com/translate_a/single',
+        'https://translate.google.com/translate_a/single'
+      ],source,sl,tl,2200);
+      translationMemory.set(key,translated);
+      if (translationMemory.size>250) translationMemory.delete(translationMemory.keys().next().value);
+      return translated;
+    } catch(error) { lastError=error; }
     throw new Error(`Translation unavailable (${lastError?.message || 'network'})`);
   })();
   translationTasks.set(key,task);
@@ -1942,63 +2035,24 @@ function primeInterpreterAudioContext() {
 async function playInterpreterDecodedAudio(text, lang) {
   const ctx=interpreterAudioContext, gain=interpreterAudioGain;
   if (!ctx || !gain || !text) return false;
-  interpreterPendingTtsFallback=null;
   const configuredApi=String(window.HEAL_TRANSLATOR_API_BASE || '').replace(/\/+$/,'');
-  if (!configuredApi) {
-    try {
-      const result=await requestAppsScript('tts',{tl:lang,q:text},10000);
-      if (result?.ok && result.audio) {
-        interpreterPendingTtsFallback={key:`${lang}\u0000${text}`,src:`data:audio/mpeg;base64,${result.audio}`};
-        const binary=atob(result.audio), bytes=new Uint8Array(binary.length);
-        for (let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
-        const decoded=await playDecodedInterpreterBuffer(bytes.buffer,ctx,gain);
-        if (decoded) { interpreterPendingTtsFallback=null; return true; }
-      }
-    } catch(error) { console.warn('Apps Script speech proxy unavailable; trying browser audio.',error); }
-  }
-  if (interpreterPendingTtsFallback?.key===`${lang}\u0000${text}`) return false;
-  const urls=configuredApi ? [configuredApi+'/google-tts?tl='+encodeURIComponent(lang)+'&q='+encodeURIComponent(text)] : [];
-  if (!configuredApi) urls.push('https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl='+encodeURIComponent(lang)+'&q='+encodeURIComponent(text));
+  // Without a CORS proxy, WebAudio cannot reliably decode Google's
+  // cross-origin audio in Safari. Use the gesture-unlocked HTMLAudioElement
+  // path instead of probing the unrelated usage logger or retrying CORS fetches.
+  if (!configuredApi) return false;
   let data=null;
-  for (const url of urls) {
-    try {
-      const controller=new AbortController();
-      const timer=setTimeout(()=>controller.abort(),5000);
-      const res=await fetch(url,{cache:'no-store',signal:controller.signal});
-      clearTimeout(timer);
-      if (!res.ok) continue;
-      data=await res.arrayBuffer();
-      if (data.byteLength) break;
-    } catch(e) {}
-  }
-  if (!data) return false;
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),3200);
+  try {
+    const res=await fetch(configuredApi+'/google-tts?tl='+encodeURIComponent(lang)+'&q='+encodeURIComponent(text),{cache:'no-store',signal:controller.signal});
+    if (res.ok) data=await res.arrayBuffer();
+  } catch(e) {} finally { clearTimeout(timer); }
+  if (!data?.byteLength) return false;
   try {
     if (ctx.state==='suspended') {
       const resumed=await Promise.race([
         ctx.resume().then(()=>true).catch(()=>false),
         new Promise(resolve=>setTimeout(()=>resolve(false),700))
-      ]);
-      if (!resumed || ctx.state!=='running') return false;
-    }
-    const buffer=await ctx.decodeAudioData(data.slice(0));
-    if (interpreterAudioSource) { try { interpreterAudioSource.stop(); } catch(e) {} }
-    const source=ctx.createBufferSource(); source.buffer=buffer; source.connect(gain); interpreterAudioSource=source;
-    return await new Promise(resolve=>{
-      let finished=false;
-      const finish=ok=>{if(finished)return;finished=true;if(interpreterAudioSource===source)interpreterAudioSource=null;resolve(ok);};
-      source.onended=()=>finish(true);
-      const timer=setTimeout(()=>{try{source.stop()}catch(e){};finish(false)},Math.max(2600,Math.min(9000,buffer.duration*1000+1200)));
-      source.onended=()=>{clearTimeout(timer);finish(true)};
-      try { source.start(0); } catch(e) { clearTimeout(timer); finish(false); }
-    });
-  } catch(e) { return false; }
-}
-async function playDecodedInterpreterBuffer(data,ctx,gain) {
-  try {
-    if (ctx.state==='suspended') {
-      const resumed=await Promise.race([
-        ctx.resume().then(()=>true).catch(()=>false),
-        new Promise(resolve=>setTimeout(()=>resolve(false),1000))
       ]);
       if (!resumed || ctx.state!=='running') return false;
     }
@@ -2126,7 +2180,7 @@ function playGoogleTts(text, tl, useInterpreterAudio=false, preloadedSource='') 
     };
     const startPlayback=async()=>{
       if (preloadedSource) { loadAndPlay(preloadedSource); return; }
-      if (!preparedPath && !configuredApi) {
+      if (!useInterpreterAudio && !preparedPath && !configuredApi) {
         try {
           const result=await requestAppsScript('tts',{tl,q:text},10000);
           if (result?.ok && result.audio) { loadAndPlay(`data:audio/mpeg;base64,${result.audio}`); return; }
@@ -2328,7 +2382,7 @@ function languageLabel(lang) { return ({ th:'ภาษาไทย', en:'English
 function detectInterpreterLanguage(text, expectedLang='th') {
   const value=String(text || '');
   if (/[\u0E00-\u0E7F]/.test(value)) return 'th';
-  if (/[\u1000-\u109F]/.test(value)) return 'my';
+  if (/[\u1000-\u109F\uA9E0-\uA9FF\uAA60-\uAA7F]/.test(value)) return 'my';
   if (/[\u4E00-\u9FFF]/.test(value)) return 'zh-CN';
   if (/[A-Za-z]/.test(value)) return 'en';
   return expectedLang;
@@ -2368,6 +2422,19 @@ function onInterpreterFirstTurnChange() {
     ? `เริ่มฟังผู้ป่วยก่อน (${languageLabel(patientLanguage())})`
     : 'เริ่มฟังบุคลากรพูดภาษาไทยก่อน';
 }
+function onInterpreterVisibilityChange() {
+  if (!interpreterActive) return;
+  if (document.hidden) {
+    if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
+    if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
+    const old=interpreterRecognition;
+    interpreterRecognition=null;
+    try { if(old) old.onend=null; if(old) old.abort(); } catch(e) {}
+    return;
+  }
+  if (!interpreterBusy && !interpreterRecognition) scheduleInterpreterRecognition(100);
+}
+document.addEventListener('visibilitychange',onInterpreterVisibilityChange);
 function updateInterpreterTurn() {
   const source = interpreterNextLang;
   document.getElementById('interpreterTurn').textContent = interpreterActive ? `กำลังฟัง: ${languageLabel(source)} · อีกฝั่งจะได้ยินคำแปล` : 'พร้อมเริ่มสนทนา';
@@ -2405,7 +2472,7 @@ function scheduleInterpreterRecognition(delay=120) {
   },delay);
 }
 function startInterpreterRecognition() {
-  if (!interpreterActive || interpreterBusy) return;
+  if (!interpreterActive || interpreterBusy || document.hidden) return;
   if (interpreterRecognition) return;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return;
@@ -2434,7 +2501,7 @@ function startInterpreterRecognition() {
           if (sessionToken===interpreterSessionToken && interpreterRecognition===rec) {
             try { rec.stop(); } catch(e) {}
           }
-        },450);
+        },280);
       }
     };
     rec.onerror = event => {
@@ -2490,7 +2557,7 @@ async function handleInterpreterUtterance(text, sourceLang) {
   const detected=detectInterpreterLanguage(text,expectedTurnLang);
   // SpeechRecognition was configured with the selected locale. Trust that locale
   // unless the transcript is unmistakably written in a third script.
-  const scriptMismatch=(detected!==expectedTurnLang && /[\u4E00-\u9FFF\u1000-\u109F\u0E00-\u0E7F]/u.test(text));
+  const scriptMismatch=(detected!==expectedTurnLang && /[\u4E00-\u9FFF\u1000-\u109F\uA9E0-\uA9FF\uAA60-\uAA7F\u0E00-\u0E7F]/u.test(text));
   sourceLang = scriptMismatch ? detected : expectedTurnLang;
   // Recognition is constrained to the selected pair; never send a third language
   // to the translator under the wrong source-language label.
@@ -2499,6 +2566,7 @@ async function handleInterpreterUtterance(text, sourceLang) {
     document.getElementById('interpreterSourceText').textContent=text;
     document.getElementById('interpreterStatus').textContent=`ตรวจพบ ${languageLabel(detected)} ซึ่งไม่อยู่ในคู่ภาษาที่เลือก · กรุณาพูด ${languageLabel(expectedTurnLang)} หรือกดสลับภาษา`;
     updateInterpreterTurn();
+    if (interpreterActive) scheduleInterpreterRecognition(100);
     return;
   }
   interpreterBusy = true; updateInterpreterTurn();
@@ -2509,7 +2577,7 @@ async function handleInterpreterUtterance(text, sourceLang) {
   document.getElementById('interpreterTranslatedText').textContent = 'กำลังแปล…';
   document.getElementById('interpreterStatus').textContent = `กำลังแปล ${languageLabel(sourceLang)} → ${languageLabel(targetLang)}…`;
   try {
-    const translated = await gTranslate(text, sourceLang, targetLang);
+    const translated = await translateInterpreterText(text, sourceLang, targetLang);
     if (!interpreterActive || sessionToken !== interpreterSessionToken) return;
     document.getElementById('interpreterTranslatedText').textContent = translated;
     document.getElementById('interpreterStatus').textContent = `กำลังพูดคำแปล ${languageLabel(targetLang)}…`;
@@ -2567,11 +2635,8 @@ async function speakInterpreterGoogleChunk(text, lang) {
     const decoded=await playInterpreterDecodedAudio(text,lang);
     if (decoded) return true;
   }
-  const cachedTts=interpreterPendingTtsFallback;
-  interpreterPendingTtsFallback=null;
-  const cachedSource=cachedTts?.key===`${lang}\u0000${text}` ? cachedTts.src : '';
   return new Promise(resolve => {
-    const audio=playGoogleTts(text,lang,true,cachedSource);
+    const audio=playGoogleTts(text,lang,true);
     if (!audio) { resolve(false); return; }
     let finished=false, watchdog=null, ok=false;
     const armWatchdog=(delay,success)=>{
@@ -2672,11 +2737,11 @@ async function interpreterSpeak(text, lang) {
 }
 function speakInterpreterSource() {
   const text=document.getElementById('interpreterSourceText')?.textContent.trim();
-  if (text && text !== '—') speakText(text, interpreterNextLang);
+  if (text && text !== '—') playGoogleTts(text,interpreterNextLang,true);
 }
 function speakInterpreterTranslation() {
   const text=document.getElementById('interpreterTranslatedText')?.textContent.trim();
-  if (text && text !== '—' && text !== 'กำลังแปล…') speakText(text, interpreterNextLang === 'th' ? patientLanguage() : 'th');
+  if (text && text !== '—' && text !== 'กำลังแปล…') playGoogleTts(text,interpreterNextLang === 'th' ? patientLanguage() : 'th',true);
 }
 function restartInterpreterRecognitionForNewTurn() {
   if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
@@ -2709,7 +2774,6 @@ function stopInterpreter() {
   if(activeAudio){if(activeAudio._interpreterFinish)activeAudio._interpreterFinish();activeAudio.pause();currentGoogleAudio=null;}
   if(interpreterPrimedAudio){if(interpreterPrimedAudio!==activeAudio)interpreterPrimedAudio.pause();interpreterPrimedAudio=null;}
   if(interpreterAudioSource){try{interpreterAudioSource.stop()}catch(e){} interpreterAudioSource=null;}
-  interpreterPendingTtsFallback=null;
   if(interpreterAudioContext && interpreterAudioContext.state==='running') interpreterAudioContext.suspend().catch(()=>{});
   document.getElementById('interpreterStartBtn').disabled = false;
   document.getElementById('interpreterStopBtn').disabled = true;
