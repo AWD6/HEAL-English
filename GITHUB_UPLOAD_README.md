@@ -1,8 +1,7 @@
-# HEAL English — stable v6 upload
+# HEAL English — v7 mobile AI Translator update
 
 Upload the contents of this folder to the repository root. `index.html` must be at the root.
 
-This package restores the previously stable v6 translator and language-switching logic.
-Keep `assets/audio/my/` and `vendor/` intact.
+This package includes mobile fixes for AI Translator speech recognition, translation, and speech playback. Keep `assets/audio/my/` and `vendor/` intact.
 
-For GitHub Pages, the static translation uses the public Google Translate endpoint from the browser. `server.py` is only for deployments that run a Python server and provides Google TTS.
+For Google Apps Script translation and speech, deploy `Code.gs` as a Web App and set its public `/exec` URL in `translator-config.js`. The `/dev` test URL is editor-only. GitHub Pages must be served over HTTPS for microphone access.

@@ -413,6 +413,8 @@ let interpreterNextLang = 'th';
 let interpreterRecognition = null;
 let interpreterRestartTimer = null;
 let interpreterFinalizeTimer = null;
+let interpreterRecognitionStartTimer = null;
+let interpreterRecognitionResultTimer = null;
 let interpreterLocaleFallbackIndex = 0;
 let interpreterRecognitionStartRetries = 0;
 let interpreterRecognitionQuietTurns = 0;
@@ -1067,6 +1069,19 @@ function fetchInterpreterTranslationFromAny(endpoints, source, sl, tl, timeoutMs
     });
   });
 }
+function clearInterpreterRecognitionWatchdogs() {
+  if (interpreterRecognitionStartTimer) { clearTimeout(interpreterRecognitionStartTimer); interpreterRecognitionStartTimer=null; }
+  if (interpreterRecognitionResultTimer) { clearTimeout(interpreterRecognitionResultTimer); interpreterRecognitionResultTimer=null; }
+}
+function armInterpreterRecognitionResultWatchdog(rec, sessionToken) {
+  if (interpreterRecognitionResultTimer) clearTimeout(interpreterRecognitionResultTimer);
+  interpreterRecognitionResultTimer=setTimeout(()=>{
+    interpreterRecognitionResultTimer=null;
+    if (sessionToken===interpreterSessionToken && interpreterRecognition===rec && interpreterActive && !interpreterBusy) {
+      activateInterpreterFallback(`เบราว์เซอร์ไม่ส่งผลการฟัง ${languageLabel(interpreterNextLang)} · ใช้ไมโครโฟนบนแป้นพิมพ์เพื่อพูด แล้วระบบจะแปลต่อ`);
+    }
+  },20000);
+}
 function translateInterpreterWithFastFallback(source,sl,tl,configuredApi) {
   const fastRoutes=[];
   if (configuredApi) fastRoutes.push(fetchInterpreterTranslation(`${configuredApi}/translate`,source,sl,tl,1200));
@@ -1131,7 +1146,11 @@ async function translateInterpreterText(text, sl, tl) {
 }
 
 function requestAppsScript(action, params={}, timeoutMs=10000) {
-  return new Promise((resolve,reject)=>{
+  const configuredEndpoint=String(window.HEAL_TRANSLATOR_APPS_SCRIPT_URL || '').trim().replace(/\/$/,'');
+  const endpoints=action.startsWith('interpreter-') && configuredEndpoint
+    ? [...new Set([configuredEndpoint,GOOGLE_SHEETS_ENDPOINT])]
+    : [GOOGLE_SHEETS_ENDPOINT];
+  const requestEndpoint=(index)=>new Promise((resolve,reject)=>{
     const callback=`__healAppsScript_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const script=document.createElement('script');
     const query=new URLSearchParams({action,callback,...params});
@@ -1143,10 +1162,20 @@ function requestAppsScript(action, params={}, timeoutMs=10000) {
     const timer=setTimeout(()=>{cleanup();reject(new Error('Apps Script timeout'));},timeoutMs);
     window[callback]=value=>{cleanup();resolve(value);};
     script.onerror=()=>{cleanup();reject(new Error('Apps Script request failed'));};
-    script.src=`${GOOGLE_SHEETS_ENDPOINT}?${query.toString()}`;
+    if (action.startsWith('interpreter-')) {
+      script.onload=()=>{if(!settled){cleanup();reject(new Error('Apps Script returned no JSONP response'));}};
+    }
+    script.src=`${endpoints[index]}?${query.toString()}`;
     script.async=true;
     document.head.appendChild(script);
+  }).then(result=>{
+    if (result?.ok===false && index<endpoints.length-1) return requestEndpoint(index+1);
+    return result;
+  }).catch(error=>{
+    if (index<endpoints.length-1) return requestEndpoint(index+1);
+    throw error;
   });
+  return requestEndpoint(0);
 }
 
 /* ── Phonetics (อัปเกรดระบบเดาคำอ่าน) ───────────────────────── */
@@ -2464,6 +2493,7 @@ function onInterpreterVisibilityChange() {
   if (document.hidden) {
     if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
     if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
+    clearInterpreterRecognitionWatchdogs();
     const old=interpreterRecognition;
     interpreterRecognition=null;
     try { if(old) old.onend=null; if(old) old.abort(); } catch(e) {}
@@ -2481,6 +2511,9 @@ function updateInterpreterDictationLanguage() {
 function activateInterpreterFallback(message='') {
   if (!interpreterActive) return;
   interpreterFallbackMode=true;
+  clearInterpreterRecognitionWatchdogs();
+  if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
+  if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
   const old=interpreterRecognition;
   interpreterRecognition=null;
   if (old) { old.onend=null; try { old.abort(); } catch(e) {} }
@@ -2511,13 +2544,22 @@ function submitInterpreterDictation() {
   input.value='';
   return handleInterpreterUtterance(text,interpreterNextLang);
 }
-document.getElementById('interpreterDictationText')?.addEventListener('input',event=>{
-  if (!/dictation/i.test(String(event.inputType || ''))) return;
+function scheduleInterpreterDictationSubmit(delay=1050) {
   if (interpreterDictationTimer) clearTimeout(interpreterDictationTimer);
   interpreterDictationTimer=setTimeout(()=>{
     interpreterDictationTimer=null;
     if (interpreterFallbackMode && !interpreterBusy) submitInterpreterDictation();
-  },850);
+  },delay);
+}
+document.getElementById('interpreterDictationText')?.addEventListener('input',event=>{
+  if (!interpreterFallbackMode || event.isComposing) return;
+  const inputType=String(event.inputType || '');
+  const delay=/dictation|speech/i.test(inputType) ? 350 : 1050;
+  scheduleInterpreterDictationSubmit(delay);
+});
+document.getElementById('interpreterDictationText')?.addEventListener('compositionend',()=>{
+  if (!interpreterFallbackMode) return;
+  scheduleInterpreterDictationSubmit(450);
 });
 function updateInterpreterTurn() {
   const source = interpreterNextLang;
@@ -2533,6 +2575,7 @@ function updateInterpreterTurn() {
 function startInterpreter() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
+  clearInterpreterRecognitionWatchdogs();
   interpreterSessionToken++;
   interpreterActive = true; interpreterBusy = false;
   interpreterFallbackMode = !SR;
@@ -2567,6 +2610,7 @@ function startInterpreterRecognition() {
   if (interpreterRecognition) return;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { activateInterpreterFallback(); return; }
+  clearInterpreterRecognitionWatchdogs();
   let rec=null;
   const sessionToken=interpreterSessionToken;
   try {
@@ -2575,29 +2619,37 @@ function startInterpreterRecognition() {
     rec.lang = localeOptions[Math.min(interpreterLocaleFallbackIndex,localeOptions.length-1)];
     rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 5;
     const finalSegments=new Map(), interimSegments=new Map();
-    rec.onstart = () => { if(sessionToken!==interpreterSessionToken || interpreterRecognition!==rec) return; interpreterRecognitionStartRetries=0; document.getElementById('interpreterStatus').textContent = `กำลังฟัง ${languageLabel(interpreterNextLang)}…`; updateInterpreterTurn(); };
+    rec.onstart = () => {
+      if(sessionToken!==interpreterSessionToken || interpreterRecognition!==rec) return;
+      if (interpreterRecognitionStartTimer) { clearTimeout(interpreterRecognitionStartTimer); interpreterRecognitionStartTimer=null; }
+      interpreterRecognitionStartRetries=0;
+      armInterpreterRecognitionResultWatchdog(rec,sessionToken);
+      document.getElementById('interpreterStatus').textContent = `กำลังฟัง ${languageLabel(interpreterNextLang)}…`;
+      updateInterpreterTurn();
+    };
     rec.onresult = event => {
       if (sessionToken!==interpreterSessionToken || interpreterRecognition!==rec || !interpreterActive) return;
-      let partialText = '';
+      if (interpreterRecognitionStartTimer) { clearTimeout(interpreterRecognitionStartTimer); interpreterRecognitionStartTimer=null; }
+      armInterpreterRecognitionResultWatchdog(rec,sessionToken);
       for (let i=event.resultIndex;i<event.results.length;i++) {
         const transcript=bestRecognitionTranscript(event.results[i],interpreterNextLang);
         if (event.results[i].isFinal && transcript) { finalSegments.set(i,transcript); interimSegments.delete(i); }
         else if (transcript) { interimSegments.set(i,transcript); }
         else interimSegments.delete(i);
       }
-      partialText=Array.from(interimSegments.entries()).sort((a,b)=>a[0]-b[0]).map(([,part])=>part).join(' ');
-      if (partialText.trim()) document.getElementById('interpreterSourceText').textContent=partialText.trim();
-      if (finalSegments.size || (interpreterNextLang==='en' && interimSegments.size)) {
+      const currentText=Array.from(new Map([...finalSegments,...interimSegments]).entries())
+        .sort((a,b)=>a[0]-b[0]).map(([,part])=>part).join(' ').trim();
+      if (currentText) document.getElementById('interpreterSourceText').textContent=currentText;
+      if (finalSegments.size || interimSegments.size) {
         if (interpreterFinalizeTimer) clearTimeout(interpreterFinalizeTimer);
         interpreterFinalizeTimer=setTimeout(()=>{
           interpreterFinalizeTimer=null;
           if (sessionToken===interpreterSessionToken && interpreterRecognition===rec) {
             try { rec.stop(); } catch(e) {}
           }
-        // English recognition may never emit a final segment consistently on
-        // mobile browsers; translate the latest stable interim transcript
-        // after a shorter pause to reduce the perceived delay.
-        },finalSegments.size ? 140 : 600);
+        // Some mobile speech services only publish interim results. Treat a
+        // short pause as end-of-utterance for every supported language.
+        },finalSegments.size ? 160 : 700);
       }
     };
     rec.onerror = event => {
@@ -2611,6 +2663,7 @@ function startInterpreterRecognition() {
         activateInterpreterFallback(`รับเสียงจากเบราว์เซอร์ไม่ได้ (${event.error}) · ใช้ไมโครโฟนบนแป้นพิมพ์แล้วแปลต่อได้`);
       }
       else if (event.error === 'language-not-supported') {
+        clearInterpreterRecognitionWatchdogs();
         if (interpreterLocaleFallbackIndex < localeOptions.length-1) {
           interpreterLocaleFallbackIndex++;
           document.getElementById('interpreterStatus').textContent=`ลองรูปแบบภาษา ${localeOptions[interpreterLocaleFallbackIndex]} สำหรับ ${languageLabel(interpreterNextLang)}…`;
@@ -2625,33 +2678,39 @@ function startInterpreterRecognition() {
       else if (event.error !== 'no-speech' && event.error !== 'aborted') document.getElementById('interpreterStatus').textContent = `มีปัญหาการรับเสียง (${event.error}) กำลังลองใหม่…`;
     };
     rec.onend = () => {
-      if (interpreterRecognition===rec) interpreterRecognition=null;
-      // An old recognizer can fire onend after the user has pressed Swap.
-      // Never let that stale callback schedule a competing session.
+      // A recognizer from the previous language turn must not clear the
+      // watchdogs belonging to the current one.
       if (sessionToken!==interpreterSessionToken) return;
+      clearInterpreterRecognitionWatchdogs();
+      if (interpreterRecognition===rec) interpreterRecognition=null;
       if (interpreterFallbackMode) return;
       if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
       const completeText=Array.from(finalSegments.entries()).sort((a,b)=>a[0]-b[0]).map(([,part])=>part).join(' ').trim();
       const latestText=Array.from(new Map([...finalSegments,...interimSegments]).entries()).sort((a,b)=>a[0]-b[0]).map(([,part])=>part).join(' ').trim();
-      const recognizedText=completeText || (interpreterNextLang==='en' ? latestText : '');
+      const recognizedText=completeText || latestText;
       if (recognizedText && interpreterActive && !interpreterBusy) {
         interpreterRecognitionQuietTurns=0;
         handleInterpreterUtterance(recognizedText,interpreterNextLang);
         return;
       }
       if (interpreterActive && !interpreterBusy) {
-        if (interpreterNextLang==='en') {
-          interpreterRecognitionQuietTurns++;
-          if (interpreterRecognitionQuietTurns>=4) {
-            activateInterpreterFallback('ยังรับประโยคภาษาอังกฤษไม่ได้ · ใช้ไมโครโฟนบนแป้นพิมพ์เพื่อพูด แล้วระบบจะแปลต่อ');
-            return;
-          }
+        interpreterRecognitionQuietTurns++;
+        if (interpreterRecognitionQuietTurns>=4) {
+          activateInterpreterFallback(`ยังรับประโยค ${languageLabel(interpreterNextLang)} ไม่ได้ · ใช้ไมโครโฟนบนแป้นพิมพ์เพื่อพูด แล้วระบบจะแปลต่อ`);
+          return;
         }
         scheduleInterpreterRecognition(140);
       }
     };
+    interpreterRecognitionStartTimer=setTimeout(()=>{
+      interpreterRecognitionStartTimer=null;
+      if (sessionToken===interpreterSessionToken && interpreterRecognition===rec && interpreterActive && !interpreterBusy) {
+        activateInterpreterFallback(`เบราว์เซอร์ไม่เริ่มฟัง ${languageLabel(interpreterNextLang)} · ใช้ไมโครโฟนบนแป้นพิมพ์เพื่อพูด แล้วระบบจะแปลต่อ`);
+      }
+    },8000);
     rec.start();
   } catch (err) {
+    clearInterpreterRecognitionWatchdogs();
     if (interpreterRecognition===rec) interpreterRecognition=null;
     if (!interpreterActive) return;
     if (err && ['NotAllowedError','SecurityError'].includes(err.name)) {
@@ -2990,6 +3049,7 @@ function speakInterpreterTranslation() {
 function restartInterpreterRecognitionForNewTurn() {
   if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
   if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
+  clearInterpreterRecognitionWatchdogs();
   // Invalidate every callback belonging to the previous language session.
   interpreterSessionToken++;
   interpreterLocaleFallbackIndex=0;
@@ -3026,6 +3086,7 @@ function stopInterpreter() {
   if (interpreterDictationTimer) { clearTimeout(interpreterDictationTimer); interpreterDictationTimer=null; }
   if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
   if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
+  clearInterpreterRecognitionWatchdogs();
   const oldRecognition=interpreterRecognition;
   interpreterRecognition=null;
   if (oldRecognition) { oldRecognition.onend=null; try { oldRecognition.abort(); } catch(e) {} }
