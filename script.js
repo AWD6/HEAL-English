@@ -414,6 +414,8 @@ let interpreterRecognition = null;
 let interpreterRestartTimer = null;
 let interpreterFinalizeTimer = null;
 let interpreterLocaleFallbackIndex = 0;
+let interpreterRecognitionStartRetries = 0;
+let interpreterRecognitionQuietTurns = 0;
 let interpreterFallbackMode = false;
 let interpreterLastSourceLang = 'th';
 let interpreterLastTargetLang = 'en';
@@ -2058,6 +2060,11 @@ async function playInterpreterDecodedAudio(text, lang) {
     if (res.ok) data=await res.arrayBuffer();
   } catch(e) {} finally { clearTimeout(timer); }
   if (!data?.byteLength) return false;
+  return playInterpreterAudioBuffer(data,text);
+}
+async function playInterpreterAudioBuffer(data,text) {
+  const ctx=interpreterAudioContext, gain=interpreterAudioGain;
+  if (!ctx || !gain || !data?.byteLength) return false;
   try {
     if (ctx.state==='suspended') {
       const resumed=await Promise.race([
@@ -2067,6 +2074,7 @@ async function playInterpreterDecodedAudio(text, lang) {
       if (!resumed || ctx.state!=='running') return false;
     }
     const buffer=await ctx.decodeAudioData(data.slice(0));
+    if (!buffer || !buffer.duration) return false;
     if (interpreterAudioSource) { try { interpreterAudioSource.stop(); } catch(e) {} }
     const source=ctx.createBufferSource(); source.buffer=buffer; source.connect(gain); interpreterAudioSource=source;
     return await new Promise(resolve=>{
@@ -2512,6 +2520,8 @@ function startInterpreter() {
   interpreterFallbackMode = !SR;
   interpreterNextLang = document.getElementById('interpreterFirstTurn').value === 'patient' ? patientLanguage() : 'th';
   interpreterLocaleFallbackIndex = 0;
+  interpreterRecognitionStartRetries = 0;
+  interpreterRecognitionQuietTurns = 0;
   primeInterpreterAudioContext();
   primeGoogleAudioPlayback();
   document.getElementById('interpreterStartBtn').disabled = true;
@@ -2547,7 +2557,7 @@ function startInterpreterRecognition() {
     rec.lang = localeOptions[Math.min(interpreterLocaleFallbackIndex,localeOptions.length-1)];
     rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 5;
     const finalSegments=new Map(), interimSegments=new Map();
-    rec.onstart = () => { if(sessionToken!==interpreterSessionToken || interpreterRecognition!==rec) return; document.getElementById('interpreterStatus').textContent = `กำลังฟัง ${languageLabel(interpreterNextLang)}…`; updateInterpreterTurn(); };
+    rec.onstart = () => { if(sessionToken!==interpreterSessionToken || interpreterRecognition!==rec) return; interpreterRecognitionStartRetries=0; document.getElementById('interpreterStatus').textContent = `กำลังฟัง ${languageLabel(interpreterNextLang)}…`; updateInterpreterTurn(); };
     rec.onresult = event => {
       if (sessionToken!==interpreterSessionToken || interpreterRecognition!==rec || !interpreterActive) return;
       let partialText = '';
@@ -2604,10 +2614,20 @@ function startInterpreterRecognition() {
       const latestText=Array.from(new Map([...finalSegments,...interimSegments]).entries()).sort((a,b)=>a[0]-b[0]).map(([,part])=>part).join(' ').trim();
       const recognizedText=completeText || (interpreterNextLang==='en' ? latestText : '');
       if (recognizedText && interpreterActive && !interpreterBusy) {
+        interpreterRecognitionQuietTurns=0;
         handleInterpreterUtterance(recognizedText,interpreterNextLang);
         return;
       }
-      if (interpreterActive && !interpreterBusy) scheduleInterpreterRecognition(140);
+      if (interpreterActive && !interpreterBusy) {
+        if (interpreterNextLang==='en') {
+          interpreterRecognitionQuietTurns++;
+          if (interpreterRecognitionQuietTurns>=4) {
+            activateInterpreterFallback('ยังรับประโยคภาษาอังกฤษไม่ได้ · ใช้ไมโครโฟนบนแป้นพิมพ์เพื่อพูด แล้วระบบจะแปลต่อ');
+            return;
+          }
+        }
+        scheduleInterpreterRecognition(140);
+      }
     };
     rec.start();
   } catch (err) {
@@ -2615,7 +2635,15 @@ function startInterpreterRecognition() {
     if (!interpreterActive) return;
     if (err && ['NotAllowedError','SecurityError'].includes(err.name)) {
       activateInterpreterFallback('ไม่ได้รับสิทธิ์ไมโครโฟนของเบราว์เซอร์ · อนุญาตไมโครโฟนหรือใช้ไมโครโฟนบนแป้นพิมพ์');
-    } else if (err && ['InvalidStateError','NotSupportedError','TypeError'].includes(err.name)) {
+    } else if (err && err.name==='InvalidStateError') {
+      interpreterRecognitionStartRetries++;
+      if (interpreterRecognitionStartRetries<=3) {
+        document.getElementById('interpreterStatus').textContent=`กำลังเริ่มฟัง ${languageLabel(interpreterNextLang)} อีกครั้ง…`;
+        scheduleInterpreterRecognition(420);
+      } else {
+        activateInterpreterFallback(`เบราว์เซอร์เริ่มฟัง ${languageLabel(interpreterNextLang)} ไม่สำเร็จ · ใช้ไมโครโฟนบนแป้นพิมพ์แทน`);
+      }
+    } else if (err && ['NotSupportedError','TypeError'].includes(err.name)) {
       activateInterpreterFallback(`เบราว์เซอร์ไม่เปิดบริการรับเสียงอัตโนมัติ · ใช้ไมโครโฟนบนแป้นพิมพ์เพื่อพูด ${languageLabel(interpreterNextLang)}`);
     } else {
       document.getElementById('interpreterStatus').textContent = 'กำลังเชื่อมต่อไมโครโฟนใหม่…';
@@ -2716,6 +2744,10 @@ async function speakInterpreterGoogleChunk(text, lang, shouldContinue=()=>true) 
   const configuredApi=String(window.HEAL_TRANSLATOR_API_BASE || '').replace(/\/+$/,'');
   const cacheKey=`${lang}\u0000${text}`;
   let cachedAudio=interpreterTtsMemory.get(cacheKey) || null;
+  if (cachedAudio?.kind==='bytes' && interpreterAudioContext) {
+    const played=await playInterpreterAudioBuffer(cachedAudio.bytes,text);
+    if (played) return true;
+  }
   if (!cachedAudio && configuredApi && interpreterAudioContext) {
     const decoded=await playInterpreterDecodedAudio(text,lang);
     if (decoded) return true;
@@ -2739,7 +2771,18 @@ async function speakInterpreterGoogleChunk(text, lang, shouldContinue=()=>true) 
       try {
         const result=await requestAppsScript('interpreter-tts',{tl:lang,q:text},3200);
         if (!result?.ok || !result.audio) throw new Error(result?.error || 'TTS proxy unavailable');
-        cachedAudio={kind:'url',url:`data:audio/mpeg;base64,${result.audio}`};
+        const binary=atob(result.audio);
+        const bytes=new Uint8Array(binary.length);
+        for (let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+        cachedAudio={kind:'bytes',bytes:bytes.buffer};
+        if (interpreterAudioContext) {
+          const played=await playInterpreterAudioBuffer(cachedAudio.bytes,text);
+          if (played) {
+            interpreterTtsMemory.set(cacheKey,cachedAudio);
+            if (interpreterTtsMemory.size>80) interpreterTtsMemory.delete(interpreterTtsMemory.keys().next().value);
+            return true;
+          }
+        }
       } catch(e) { cachedAudio=null; }
     }
     if (cachedAudio) {
@@ -2748,7 +2791,9 @@ async function speakInterpreterGoogleChunk(text, lang, shouldContinue=()=>true) 
     }
   }
   if (!shouldContinue()) return false;
-  let source=cachedAudio?.kind==='blob' ? URL.createObjectURL(cachedAudio.blob) : cachedAudio?.url || '';
+  let source=cachedAudio?.kind==='blob' ? URL.createObjectURL(cachedAudio.blob)
+    : cachedAudio?.kind==='bytes' ? URL.createObjectURL(new Blob([cachedAudio.bytes],{type:'audio/mpeg'}))
+    : cachedAudio?.url || '';
   if (!source) {
     source='https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl='
       +encodeURIComponent(lang)+'&q='+encodeURIComponent(text);
@@ -2790,7 +2835,9 @@ async function speakInterpreterGoogleChunk(text, lang, shouldContinue=()=>true) 
     audio.addEventListener('playing',onPlaying,{once:true});
     audio.addEventListener('ended',onEnded,{once:true});
     audio.addEventListener('error',onError,{once:true});
-    watchdog=setTimeout(()=>finish(false),Math.max(8000,interpreterSpeechWatchdog(text)));
+    // Fail a stalled mobile audio element promptly so native speech or the
+    // replay control can take over without blocking the next interpreter turn.
+    watchdog=setTimeout(()=>finish(false),Math.max(5000,Math.min(7000,String(text).length*75+1800)));
     const start=()=>{
       if (playRequested || settled) return;
       playRequested=true;
@@ -2903,6 +2950,8 @@ function restartInterpreterRecognitionForNewTurn() {
   // Invalidate every callback belonging to the previous language session.
   interpreterSessionToken++;
   interpreterLocaleFallbackIndex=0;
+  interpreterRecognitionStartRetries=0;
+  interpreterRecognitionQuietTurns=0;
   const old=interpreterRecognition;
   interpreterRecognition=null;
   try { if(old) old.onend=null; if(old) old.abort(); } catch(e) {}
