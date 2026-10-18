@@ -35,16 +35,20 @@ function doGet(e) {
       const from = String(params.sl || 'auto');
       const to = String(params.tl || 'th');
       if (!source || source.length > 1500) throw new Error('Invalid text');
-      const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&dt=t'
-        + '&sl=' + encodeURIComponent(from) + '&tl=' + encodeURIComponent(to)
-        + '&q=' + encodeURIComponent(source);
-      const response = UrlFetchApp.fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
-        muteHttpExceptions: true
-      });
-      if (response.getResponseCode() < 200 || response.getResponseCode() >= 300) {
-        throw new Error('Translation provider error');
+      // Use Apps Script's Google Language service first. UrlFetchApp requests
+      // to the public web endpoint can be rate-limited (HTTP 429).
+      try {
+        const translated = String(LanguageApp.translate(source, from === 'auto' ? '' : from, to) || '').trim();
+        if (translated) return jsonpOrJson_({ ok: true, translation: translated }, callback);
+      } catch (err) {
+        // Continue with Google's public hosts if LanguageApp is unavailable.
       }
+      const query = '?client=gtx&dt=t&sl=' + encodeURIComponent(from)
+        + '&tl=' + encodeURIComponent(to) + '&q=' + encodeURIComponent(source);
+      const response = fetchGoogleProvider_([
+        'https://translate.googleapis.com/translate_a/single' + query,
+        'https://translate.google.com/translate_a/single' + query
+      ], { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }, 'Translation provider error');
       const data = JSON.parse(response.getContentText());
       const translation = (data[0] || []).map(row => row && row[0] || '').join('').trim();
       if (!translation) throw new Error('Empty translation response');
@@ -54,15 +58,13 @@ function doGet(e) {
       const source = String(params.q || '').trim();
       const to = String(params.tl || 'th');
       if (!source || source.length > 250) throw new Error('Invalid text');
-      const url = 'https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8'
-        + '&tl=' + encodeURIComponent(to) + '&q=' + encodeURIComponent(source);
-      const response = UrlFetchApp.fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'audio/mpeg' },
-        muteHttpExceptions: true
-      });
-      if (response.getResponseCode() < 200 || response.getResponseCode() >= 300) {
-        throw new Error('Speech provider error');
-      }
+      const query = '?client=gtx&ie=UTF-8&tl=' + encodeURIComponent(to)
+        + '&q=' + encodeURIComponent(source);
+      const response = fetchGoogleProvider_([
+        'https://translate.googleapis.com/translate_tts' + query,
+        'https://translate.google.com/translate_tts?client=tw-ob&ie=UTF-8&tl='
+          + encodeURIComponent(to) + '&q=' + encodeURIComponent(source)
+      ], { 'User-Agent': 'Mozilla/5.0', 'Accept': 'audio/mpeg' }, 'Speech provider error');
       const bytes = response.getContent();
       if (!bytes || !bytes.length) throw new Error('Empty speech response');
       return jsonpOrJson_({ ok: true, audio: Utilities.base64Encode(bytes) }, callback);
@@ -73,6 +75,24 @@ function doGet(e) {
   } catch (err) {
     return jsonpOrJson_({ ok: false, error: String(err && err.message || err) }, callback);
   }
+}
+
+function fetchGoogleProvider_(urls, headers, failureMessage) {
+  let lastStatus = 0;
+  for (let i = 0; i < urls.length; i++) {
+    try {
+      const response = UrlFetchApp.fetch(urls[i], {
+        headers: headers,
+        muteHttpExceptions: true
+      });
+      const status = response.getResponseCode();
+      if (status >= 200 && status < 300) return response;
+      lastStatus = status;
+    } catch (err) {
+      // Try Google's second public host if the first is unavailable.
+    }
+  }
+  throw new Error(lastStatus ? failureMessage + ' (HTTP ' + lastStatus + ')' : failureMessage);
 }
 
 function getOrCreateSheet_(ss, name, headers) {

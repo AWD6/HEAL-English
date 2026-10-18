@@ -7,7 +7,7 @@
 const STORAGE_KEY = 'heal_english_v6';
 const MULTILINGUAL_MIGRATION_KEY = 'heal_multilingual_seed_audited_v1';
 const CHINESE_THAI_PHONETIC_MIGRATION_KEY = 'heal_chinese_thai_phonetic_v4';
-const GOOGLE_SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbz47p8_KVJY5vg7tBunh5iWfqWIbHHX731_6CgZKOxpzTtTcM5CH2iV_OCtqnfJVY7d/exec';
+const GOOGLE_SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzCrVlO44Ryl0KjdOM1ToZGERUaqYfzcrzWICtX6R3z3-73vrTjcloJFS-Nko7Og-f6/exec';
 /* ═══ DEPARTMENTS ════════════════════════════════════════════ */
 const DEPT_GROUPS = [
   { group: 'หน่วยที่ 1', items: ['OPD 1', 'OPD 10', 'Telemedicine'] },
@@ -1067,6 +1067,44 @@ function fetchInterpreterTranslationFromAny(endpoints, source, sl, tl, timeoutMs
     });
   });
 }
+function translateInterpreterWithFastFallback(source,sl,tl,configuredApi) {
+  const fastRoutes=[];
+  if (configuredApi) fastRoutes.push(fetchInterpreterTranslation(`${configuredApi}/translate`,source,sl,tl,1200));
+  fastRoutes.push(fetchInterpreterTranslationFromAny([
+    'https://translate.googleapis.com/translate_a/single',
+    'https://translate.google.com/translate_a/single'
+  ],source,sl,tl,1400));
+  return new Promise((resolve,reject)=>{
+    let settled=false, failures=0, fallbackStarted=false, fallbackFinished=false, fallbackTimer=null, lastError=null;
+    const succeed=value=>{
+      if (settled || !value) return;
+      settled=true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      resolve(value);
+    };
+    const fail=error=>{
+      if (settled) return;
+      settled=true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      reject(error || new Error('Translation providers unavailable'));
+    };
+    const startAppsScript=()=>{
+      if (settled || fallbackStarted) return;
+      fallbackStarted=true;
+      requestAppsScript('interpreter-translate',{sl,tl,q:source},3200).then(result=>{
+        if (result?.ok && result.translation) succeed(String(result.translation).trim());
+        else { fallbackFinished=true; lastError=new Error(result?.error || 'Apps Script translation proxy unavailable'); if (failures===fastRoutes.length) fail(lastError); }
+      }).catch(error=>{fallbackFinished=true;lastError=error;if(failures===fastRoutes.length)fail(error);});
+    };
+    fallbackTimer=setTimeout(startAppsScript,350);
+    fastRoutes.forEach(route=>route.then(succeed).catch(()=>{
+      failures++;
+      lastError=new Error('Google Translate request failed');
+      if (failures===fastRoutes.length) startAppsScript();
+      if (failures===fastRoutes.length && fallbackFinished) fail(lastError);
+    }));
+  });
+}
 async function translateInterpreterText(text, sl, tl) {
   const source=String(text || '').trim();
   if (!source) return '';
@@ -1083,27 +1121,7 @@ async function translateInterpreterText(text, sl, tl) {
   if (translationTasks.has(key)) return translationTasks.get(key);
   const task=(async()=>{
     const configuredApi=String(window.HEAL_TRANSLATOR_API_BASE || '').replace(/\/+$/,'');
-    let translated='',lastError=null;
-    if (configuredApi) {
-      try { translated=await fetchInterpreterTranslation(`${configuredApi}/translate`,source,sl,tl,1800); }
-      catch(error) { lastError=error; }
-    }
-    if (!translated) {
-      try {
-        translated=await fetchInterpreterTranslationFromAny([
-          'https://translate.googleapis.com/translate_a/single',
-          'https://translate.google.com/translate_a/single'
-        ],source,sl,tl,1800);
-      } catch(error) { lastError=error; }
-    }
-    if (!translated) {
-      try {
-        const result=await requestAppsScript('interpreter-translate',{sl,tl,q:source},3600);
-        if (result?.ok && result.translation) translated=String(result.translation).trim();
-        else throw new Error(result?.error || 'Apps Script translation proxy unavailable');
-      } catch(error) { lastError=error; }
-    }
-    if (!translated) throw new Error(`Translation unavailable (${lastError?.message || 'network'})`);
+    const translated=await translateInterpreterWithFastFallback(source,sl,tl,configuredApi);
     translationMemory.set(key,translated);
     if (translationMemory.size>250) translationMemory.delete(translationMemory.keys().next().value);
     return translated;
@@ -2576,7 +2594,10 @@ function startInterpreterRecognition() {
           if (sessionToken===interpreterSessionToken && interpreterRecognition===rec) {
             try { rec.stop(); } catch(e) {}
           }
-        },finalSegments.size ? 140 : 850);
+        // English recognition may never emit a final segment consistently on
+        // mobile browsers; translate the latest stable interim transcript
+        // after a shorter pause to reduce the perceived delay.
+        },finalSegments.size ? 140 : 600);
       }
     };
     rec.onerror = event => {
@@ -2738,12 +2759,86 @@ function splitInterpreterSpeech(text, limit=150) {
 function interpreterSpeechWatchdog(text) {
   return Math.max(4800,Math.min(14000,String(text || '').length*115+2500));
 }
+async function playInterpreterTtsMedia(text,lang,shouldContinue=()=>true) {
+  const query='ie=UTF-8&tl='+encodeURIComponent(lang)+'&q='+encodeURIComponent(text);
+  const sources=[
+    'https://translate.googleapis.com/translate_tts?client=gtx&'+query,
+    'https://translate.google.com/translate_tts?client=tw-ob&'+query
+  ];
+  for (const source of sources) {
+    if (!shouldContinue()) return false;
+    if (await playInterpreterAudioElement(source,text,shouldContinue)) return true;
+  }
+  return false;
+}
+function playInterpreterAudioElement(source,text,shouldContinue=()=>true) {
+  if (!source || !shouldContinue()) return Promise.resolve(false);
+  const audio=interpreterPrimedAudio || new Audio();
+  const previous=currentGoogleAudio;
+  if (previous && previous!==audio) {
+    if (previous._interpreterFinish) previous._interpreterFinish(false);
+    previous.pause();
+  }
+  try { audio.pause(); audio.currentTime=0; } catch(e) {}
+  audio.setAttribute('playsinline',''); audio.preload='auto'; audio.volume=1; audio.src=source;
+  currentGoogleAudio=audio;
+  const isObjectUrl=source.startsWith('blob:');
+  return new Promise(resolve=>{
+    let settled=false, started=false, playRequested=false, watchdog=null;
+    const cleanup=()=>{
+      if (watchdog) clearTimeout(watchdog);
+      audio.removeEventListener('playing',onPlaying);
+      audio.removeEventListener('ended',onEnded);
+      audio.removeEventListener('error',onError);
+      audio.removeEventListener('canplay',start);
+      audio.removeEventListener('loadeddata',start);
+      if (audio._interpreterFinish===finish) audio._interpreterFinish=null;
+      if (isObjectUrl) URL.revokeObjectURL(source);
+    };
+    const finish=ok=>{
+      if (settled) return;
+      settled=true; cleanup(); resolve(!!ok);
+    };
+    const onPlaying=()=>{
+      started=true;
+      if (watchdog) clearTimeout(watchdog);
+      const duration=Number.isFinite(audio.duration) && audio.duration>0
+        ? Math.min(18000,audio.duration*1000+1800) : interpreterSpeechWatchdog(text);
+      watchdog=setTimeout(()=>finish(started),duration);
+      document.getElementById('speechNotice')?.classList.remove('visible');
+    };
+    const onEnded=()=>finish(true);
+    const onError=()=>finish(false);
+    const start=()=>{
+      if (playRequested || settled || !shouldContinue()) return;
+      playRequested=true;
+      try {
+        const attempt=audio.play();
+        if (attempt && typeof attempt.catch==='function') attempt.catch(()=>finish(false));
+      } catch(e) { finish(false); }
+    };
+    audio._interpreterFinish=finish;
+    audio.addEventListener('playing',onPlaying,{once:true});
+    audio.addEventListener('ended',onEnded,{once:true});
+    audio.addEventListener('error',onError,{once:true});
+    // Move to the proxied Web Audio route quickly if a mobile media element
+    // cannot start the direct Google Translate audio.
+    watchdog=setTimeout(()=>finish(false),Math.max(2200,Math.min(4200,String(text).length*45+1500)));
+    try { audio.load(); } catch(e) {}
+    if (audio.readyState>=3) start();
+    else {
+      audio.addEventListener('canplay',start,{once:true});
+      audio.addEventListener('loadeddata',start,{once:true});
+    }
+  });
+}
 async function speakInterpreterGoogleChunk(text, lang, shouldContinue=()=>true) {
   if (!text) return false;
   if (!shouldContinue()) return false;
   const configuredApi=String(window.HEAL_TRANSLATOR_API_BASE || '').replace(/\/+$/,'');
   const cacheKey=`${lang}\u0000${text}`;
   let cachedAudio=interpreterTtsMemory.get(cacheKey) || null;
+  let directTried=false;
   if (cachedAudio?.kind==='bytes' && interpreterAudioContext) {
     const played=await playInterpreterAudioBuffer(cachedAudio.bytes,text);
     if (played) return true;
@@ -2751,6 +2846,10 @@ async function speakInterpreterGoogleChunk(text, lang, shouldContinue=()=>true) 
   if (!cachedAudio && configuredApi && interpreterAudioContext) {
     const decoded=await playInterpreterDecodedAudio(text,lang);
     if (decoded) return true;
+  }
+  if (!cachedAudio && !configuredApi) {
+    directTried=true;
+    if (await playInterpreterTtsMedia(text,lang,shouldContinue)) return true;
   }
   if (!shouldContinue()) return false;
   if (!cachedAudio) {
@@ -2794,65 +2893,9 @@ async function speakInterpreterGoogleChunk(text, lang, shouldContinue=()=>true) 
   let source=cachedAudio?.kind==='blob' ? URL.createObjectURL(cachedAudio.blob)
     : cachedAudio?.kind==='bytes' ? URL.createObjectURL(new Blob([cachedAudio.bytes],{type:'audio/mpeg'}))
     : cachedAudio?.url || '';
-  if (!source) {
-    source='https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl='
-      +encodeURIComponent(lang)+'&q='+encodeURIComponent(text);
-  }
-  const audio=interpreterPrimedAudio || new Audio();
-  const previous=currentGoogleAudio;
-  if (previous && previous!==audio) {
-    if (previous._interpreterFinish) previous._interpreterFinish(false);
-    previous.pause();
-  }
-  try { audio.pause(); audio.currentTime=0; } catch(e) {}
-  audio.setAttribute('playsinline',''); audio.preload='auto'; audio.volume=1; audio.src=source;
-  currentGoogleAudio=audio;
-  const isObjectUrl=source.startsWith('blob:');
-  return new Promise(resolve=>{
-    let settled=false, started=false, playRequested=false, watchdog=null;
-    const cleanup=()=>{
-      if (watchdog) clearTimeout(watchdog);
-      audio.removeEventListener('playing',onPlaying);
-      audio.removeEventListener('ended',onEnded);
-      audio.removeEventListener('error',onError);
-      if (audio._interpreterFinish===finish) audio._interpreterFinish=null;
-      if (isObjectUrl) URL.revokeObjectURL(source);
-    };
-    const finish=ok=>{
-      if (settled) return;
-      settled=true; cleanup(); resolve(ok);
-    };
-    const onPlaying=()=>{
-      started=true;
-      const duration=Number.isFinite(audio.duration) && audio.duration>0
-        ? Math.min(18000,audio.duration*1000+1800) : interpreterSpeechWatchdog(text);
-      watchdog=setTimeout(()=>finish(started),duration);
-      document.getElementById('speechNotice')?.classList.remove('visible');
-    };
-    const onEnded=()=>finish(true);
-    const onError=()=>finish(false);
-    audio._interpreterFinish=finish;
-    audio.addEventListener('playing',onPlaying,{once:true});
-    audio.addEventListener('ended',onEnded,{once:true});
-    audio.addEventListener('error',onError,{once:true});
-    // Fail a stalled mobile audio element promptly so native speech or the
-    // replay control can take over without blocking the next interpreter turn.
-    watchdog=setTimeout(()=>finish(false),Math.max(5000,Math.min(7000,String(text).length*75+1800)));
-    const start=()=>{
-      if (playRequested || settled) return;
-      playRequested=true;
-      try {
-        const attempt=audio.play();
-        if (attempt && typeof attempt.catch==='function') attempt.catch(()=>finish(false));
-      } catch(e) { finish(false); }
-    };
-    try { audio.load(); } catch(e) {}
-    if (audio.readyState>=3) start();
-    else {
-      audio.addEventListener('canplay',start,{once:true});
-      audio.addEventListener('loadeddata',start,{once:true});
-    }
-  });
+  if (source && await playInterpreterAudioElement(source,text,shouldContinue)) return true;
+  if (!directTried && await playInterpreterTtsMedia(text,lang,shouldContinue)) return true;
+  return false;
 }
 function speakInterpreterNativeChunk(text, lang, locale, voice, shouldContinue=()=>true) {
   return new Promise(resolve => {
