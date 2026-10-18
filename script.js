@@ -2546,25 +2546,27 @@ function startInterpreterRecognition() {
     const localeOptions=speechLocaleOptions(interpreterNextLang);
     rec.lang = localeOptions[Math.min(interpreterLocaleFallbackIndex,localeOptions.length-1)];
     rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 5;
-    const finalSegments=new Map();
+    const finalSegments=new Map(), interimSegments=new Map();
     rec.onstart = () => { if(sessionToken!==interpreterSessionToken || interpreterRecognition!==rec) return; document.getElementById('interpreterStatus').textContent = `กำลังฟัง ${languageLabel(interpreterNextLang)}…`; updateInterpreterTurn(); };
     rec.onresult = event => {
       if (sessionToken!==interpreterSessionToken || interpreterRecognition!==rec || !interpreterActive) return;
       let partialText = '';
       for (let i=event.resultIndex;i<event.results.length;i++) {
         const transcript=bestRecognitionTranscript(event.results[i],interpreterNextLang);
-        if (event.results[i].isFinal && transcript) finalSegments.set(i,transcript);
-        else if (transcript) partialText += `${transcript} `;
+        if (event.results[i].isFinal && transcript) { finalSegments.set(i,transcript); interimSegments.delete(i); }
+        else if (transcript) { interimSegments.set(i,transcript); }
+        else interimSegments.delete(i);
       }
+      partialText=Array.from(interimSegments.entries()).sort((a,b)=>a[0]-b[0]).map(([,part])=>part).join(' ');
       if (partialText.trim()) document.getElementById('interpreterSourceText').textContent=partialText.trim();
-      if (finalSegments.size) {
+      if (finalSegments.size || (interpreterNextLang==='en' && interimSegments.size)) {
         if (interpreterFinalizeTimer) clearTimeout(interpreterFinalizeTimer);
         interpreterFinalizeTimer=setTimeout(()=>{
           interpreterFinalizeTimer=null;
           if (sessionToken===interpreterSessionToken && interpreterRecognition===rec) {
             try { rec.stop(); } catch(e) {}
           }
-        },140);
+        },finalSegments.size ? 140 : 850);
       }
     };
     rec.onerror = event => {
@@ -2599,8 +2601,10 @@ function startInterpreterRecognition() {
       if (interpreterFallbackMode) return;
       if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
       const completeText=Array.from(finalSegments.entries()).sort((a,b)=>a[0]-b[0]).map(([,part])=>part).join(' ').trim();
-      if (completeText && interpreterActive && !interpreterBusy) {
-        handleInterpreterUtterance(completeText,interpreterNextLang);
+      const latestText=Array.from(new Map([...finalSegments,...interimSegments]).entries()).sort((a,b)=>a[0]-b[0]).map(([,part])=>part).join(' ').trim();
+      const recognizedText=completeText || (interpreterNextLang==='en' ? latestText : '');
+      if (recognizedText && interpreterActive && !interpreterBusy) {
+        handleInterpreterUtterance(recognizedText,interpreterNextLang);
         return;
       }
       if (interpreterActive && !interpreterBusy) scheduleInterpreterRecognition(140);
@@ -2830,7 +2834,7 @@ function speakInterpreterNativeChunk(text, lang, locale, voice, shouldContinue=(
   });
 }
 async function getInterpreterVoice(synth, lang, locale) {
-  if (!synth || lang === 'my') return null;
+  if (!synth) return null;
   const find=()=>{
     const voices=synth.getVoices() || [];
     return voices.find(v=>String(v.lang || '').replace('_','-').toLowerCase()===locale.toLowerCase())
@@ -2858,12 +2862,20 @@ async function interpreterSpeak(text, lang, allowWhenStopped=false) {
   for (const chunk of chunks) {
     if (!shouldContinue()) return false;
     let played=false;
-    if (synth && lang !== 'my') {
+    // Thai and Burmese voices are inconsistently available in mobile browsers.
+    // Try the online voice first so a silent/missing device voice cannot mask speech.
+    const remoteFirst=lang==='th' || lang==='my';
+    if (!remoteFirst && synth) {
       const locale=speechLocale(lang);
       const voice=await getInterpreterVoice(synth,lang,locale);
       if (voice && shouldContinue()) played=await speakInterpreterNativeChunk(chunk,lang,locale,voice,shouldContinue);
     }
     if (!played && shouldContinue()) played=await speakInterpreterGoogleChunk(chunk,lang,shouldContinue);
+    if (!played && remoteFirst && synth && shouldContinue()) {
+      const locale=speechLocale(lang);
+      const voice=await getInterpreterVoice(synth,lang,locale);
+      if (voice && shouldContinue()) played=await speakInterpreterNativeChunk(chunk,lang,locale,voice,shouldContinue);
+    }
     if (!shouldContinue()) return false;
     if (!played) allPlayed=false;
   }
