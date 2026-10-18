@@ -8,9 +8,11 @@
 4. วางไฟล์เว็บ `index.html`, `script.js`, `style.css` และ `translator-config.js` ตามตำแหน่งเดิมใน GitHub แล้ว push ขึ้น GitHub Pages
 5. เปิดเว็บไซต์ผ่าน HTTPS และอนุญาตไมโครโฟน
 
-ลิงก์จาก Google Sheet ที่ลงท้าย `/dev` ใช้ทดสอบได้เฉพาะผู้มีสิทธิ์แก้ไข Apps Script เท่านั้น อุปกรณ์ผู้ป่วยหรือบุคลากรที่เปิด GitHub Pages จะเรียก URL นี้ไม่ได้ ต้องใช้ URL `/exec` ของ Web App ที่ deploy แล้ว ([เอกสาร Google Apps Script](https://developers.google.com/apps-script/guides/web#test_a_web_app_deployment))
+ลิงก์จาก Google Sheet ที่ลงท้าย `/dev` ใช้ทดสอบได้เฉพาะผู้มีสิทธิ์แก้ไข Apps Script เท่านั้น อุปกรณ์ผู้ป่วยหรือบุคลากรที่เปิด GitHub Pages จะเรียก URL นี้ไม่ได้ ต้องใช้ URL `/exec` ของ Web App ที่ deploy แล้ว ([เอกสาร Google Apps Script](https://developers.google.com/apps-script/guides/web#test_a_web_app_deployment)) จากการตรวจ URL ที่ให้ไว้ล่าสุด พบว่า `/dev` และ `/exec` ของ deployment นั้นยังตอบ HTTP 404 และ endpoint `/exec` เก่าตอบ `Translation provider error` สำหรับงานแปล จึงต้อง deploy `Code.gs` รุ่นล่าสุดเป็น Web App แล้วตั้ง URL `/exec` ที่ใช้งานได้จริง
 
 Google Apps Script ทำหน้าที่ส่งคำแปลและเสียงกลับแบบ JSONP จึงใช้ได้เมื่อ Safari หรือ Chrome จำกัดการเรียก Google ข้ามโดเมน การแปลผ่านบริการ Language ของ Google ก่อน ช่วยเลี่ยงการจำกัดคำขอของ public endpoint ส่วน `UrlFetchApp` และ host สำรองยังใช้เมื่อบริการหลักไม่พร้อม การบันทึกการใช้งานเดิมผ่าน `doPost` ยังอยู่เหมือนเดิม หากโปรเจกต์กำหนด OAuth scopes เอง ให้เพิ่ม `https://www.googleapis.com/auth/script.external_request` และอนุญาต UrlFetchApp ตอน deploy
+
+AI Translator จะลองเรียก `translate.googleapis.com` โดยตรงพร้อมเวลารอสำหรับเครือข่ายมือถือแล้ว หากเครือข่ายหรือเบราว์เซอร์บล็อก Google ข้ามโดเมน จะใช้ Apps Script `/exec` ที่ตั้งค่าไว้เป็นทางสำรอง หากไม่มี deployment `/exec` ที่เข้าถึงได้จากสาธารณะ การแปลบนอุปกรณ์ที่บล็อกคำขอตรงอาจล้มเหลวได้
 
 หากติดตั้ง Cloudflare Worker อยู่แล้ว สามารถใส่ URL ของ Worker ใน `translator-config.js` ได้ Worker จะเป็นเส้นทางหลักที่เร็วกว่าและ Apps Script เป็นทางสำรอง
 

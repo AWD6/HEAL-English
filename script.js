@@ -1034,6 +1034,10 @@ function findInterpreterPreparedTranslation(source, sl, tl) {
   }
   return '';
 }
+function decodeGoogleTranslationPayload(data) {
+  if (!Array.isArray(data?.[0])) return '';
+  return data[0].map(row=>row?.[0] || '').join('').trim();
+}
 async function fetchInterpreterTranslation(url, source, sl, tl, timeoutMs, controller=new AbortController()) {
   const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try {
@@ -1045,8 +1049,9 @@ async function fetchInterpreterTranslation(url, source, sl, tl, timeoutMs, contr
     endpoint.searchParams.set('q',source);
     const response=await fetch(endpoint.href,{signal:controller.signal,cache:'no-store'});
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data=await response.json();
-    const translated=Array.isArray(data?.[0]) ? data[0].map(row=>row?.[0] || '').join('').trim() : '';
+    const body=await response.text();
+    const data=JSON.parse(body.replace(/^\)\]\}',?\s*/,''));
+    const translated=decodeGoogleTranslationPayload(data);
     if (!translated) throw new Error('Empty translation response');
     return translated;
   } finally { clearTimeout(timer); }
@@ -1084,11 +1089,15 @@ function armInterpreterRecognitionResultWatchdog(rec, sessionToken) {
 }
 function translateInterpreterWithFastFallback(source,sl,tl,configuredApi) {
   const fastRoutes=[];
-  if (configuredApi) fastRoutes.push(fetchInterpreterTranslation(`${configuredApi}/translate`,source,sl,tl,1200));
+  // Mobile networks often take longer than 1.4 seconds for a cold Google
+  // request. The old short timeout made Safari/Chrome report a failed
+  // translation even when Google's CORS-enabled endpoint was reachable.
+  const providerTimeoutMs=9000;
+  if (configuredApi) fastRoutes.push(fetchInterpreterTranslation(`${configuredApi}/translate`,source,sl,tl,providerTimeoutMs));
   fastRoutes.push(fetchInterpreterTranslationFromAny([
     'https://translate.googleapis.com/translate_a/single',
     'https://translate.google.com/translate_a/single'
-  ],source,sl,tl,1400));
+  ],source,sl,tl,providerTimeoutMs));
   return new Promise((resolve,reject)=>{
     let settled=false, failures=0, fallbackStarted=false, fallbackFinished=false, fallbackTimer=null, lastError=null;
     const succeed=value=>{
@@ -1106,7 +1115,7 @@ function translateInterpreterWithFastFallback(source,sl,tl,configuredApi) {
     const startAppsScript=()=>{
       if (settled || fallbackStarted) return;
       fallbackStarted=true;
-      requestAppsScript('interpreter-translate',{sl,tl,q:source},3200).then(result=>{
+      requestAppsScript('interpreter-translate',{sl,tl,q:source},9000).then(result=>{
         if (result?.ok && result.translation) succeed(String(result.translation).trim());
         else { fallbackFinished=true; lastError=new Error(result?.error || 'Apps Script translation proxy unavailable'); if (failures===fastRoutes.length) fail(lastError); }
       }).catch(error=>{fallbackFinished=true;lastError=error;if(failures===fastRoutes.length)fail(error);});
@@ -2927,7 +2936,10 @@ async function speakInterpreterGoogleChunk(text, lang, shouldContinue=()=>true) 
     }
     if (!cachedAudio && shouldContinue()) {
       try {
-        const result=await requestAppsScript('interpreter-tts',{tl:lang,q:text},3200);
+        // Apps Script can take several seconds on mobile networks or when its
+        // Google TTS request is cold. The old 3.2s cutoff discarded valid
+        // Burmese/Thai audio before the JSONP response arrived.
+        const result=await requestAppsScript('interpreter-tts',{tl:lang,q:text},9000);
         if (!result?.ok || !result.audio) throw new Error(result?.error || 'TTS proxy unavailable');
         const binary=atob(result.audio);
         const bytes=new Uint8Array(binary.length);
