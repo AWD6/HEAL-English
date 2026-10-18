@@ -308,7 +308,13 @@
           <button class="interpreter-stop" id="interpreterStopBtn" onclick="stopInterpreter()" disabled><i class="fas fa-stop"></i> หยุด</button>
           <button class="interpreter-swap" id="interpreterSwapBtn" onclick="switchInterpreterTurn()" disabled><i class="fas fa-repeat"></i> สลับภาษาที่ฟังเอง</button>
         </div>
-        <p class="interpreter-disclaimer"><i class="fas fa-circle-info"></i> ต้องอนุญาตไมโครโฟนและใช้ผ่าน HTTPS/localhost; ระบบจำกัดการแปลไว้เฉพาะคู่ไทยกับภาษาที่เลือก และการรู้จำเสียงยังขึ้นกับภาษา/ความสามารถของเบราว์เซอร์ ข้อความส่งไป Google Translate เพื่อแปล โปรดหลีกเลี่ยงข้อมูลระบุตัวตนและตรวจทานก่อนใช้ทางการแพทย์</p>
+        <div class="interpreter-dictation" id="interpreterDictationFallback" hidden>
+          <label class="interpreter-label" for="interpreterDictationText">โหมดรับเสียงสำรอง · <span id="interpreterDictationLanguage">ภาษาไทย</span></label>
+          <p>ตั้งภาษาแป้นพิมพ์ให้ตรงกับภาษาที่แสดง แล้วใช้ไมโครโฟนบนแป้นพิมพ์ ระบบจะแปลหลังจบ Dictation หากไม่เริ่มเองให้แตะปุ่มด้านล่าง</p>
+          <textarea id="interpreterDictationText" rows="3" autocomplete="off" autocapitalize="sentences" placeholder="แตะที่นี่ แล้วพูดผ่านไมโครโฟนบนแป้นพิมพ์"></textarea>
+          <button type="button" class="transcript-speak" id="interpreterDictationSubmit" onclick="submitInterpreterDictation()"><i class="fas fa-language"></i> แปลและอ่านออกเสียง</button>
+        </div>
+        <p class="interpreter-disclaimer"><i class="fas fa-circle-info"></i> ต้องอนุญาตไมโครโฟนและใช้ผ่าน HTTPS/localhost; ระบบจำกัดการแปลไว้เฉพาะคู่ไทยกับภาษาที่เลือก ข้อความส่งไป Google Translate เพื่อแปล โปรดหลีกเลี่ยงข้อมูลระบุตัวตนและตรวจทานก่อนใช้ทางการแพทย์</p>
       </section>
     </div>
   </section>
@@ -421,7 +427,7 @@
 
 <script src="vendor/pinyin-pro.min.js"></script>
 <script src="translations.js"></script>
-<script src="translator-config.js?v=1"></script>
-<script src="script.js?v=interpreter-final-tts-fix4"></script>
+<script src="translator-config.js?v=2"></script>
+<script src="script.js?v=interpreter-mobile-fix5"></script>
 </body>
 </html>

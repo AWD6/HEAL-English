@@ -620,6 +620,10 @@ body { font-family: 'Prompt', sans-serif; background: var(--bg); color: var(--te
 .interpreter-actions { display:flex; gap:8px; }
 .interpreter-actions button { flex:1; justify-content:center; display:inline-flex; align-items:center; gap:6px; border:0; border-radius:10px; padding:10px 8px; font:600 11px 'Prompt',sans-serif; cursor:pointer; }
 .interpreter-actions button:disabled { opacity:.45; cursor:not-allowed; }
+.interpreter-dictation { margin-top:10px; padding:11px; border:1px solid #99f6e4; border-radius:10px; background:#f0fdfa; }
+.interpreter-dictation p { margin:5px 0 9px; color:var(--text-sub); font-size:11px; line-height:1.5; }
+.interpreter-dictation textarea { display:block; width:100%; box-sizing:border-box; min-height:76px; border:1px solid #cbd5e1; border-radius:8px; padding:9px; font:inherit; font-size:14px; resize:vertical; }
+.interpreter-dictation button { margin-top:7px; padding:8px 10px; border:0; border-radius:8px; background:#0f766e; color:#fff; font:600 12px 'Prompt',sans-serif; cursor:pointer; }
 .interpreter-start { color:#fff; background:var(--gradient); box-shadow:var(--shadow-btn); }
 .interpreter-stop { color:#b91c1c; background:#fee2e2; }
 .interpreter-swap { color:#475569; background:#e2e8f0; }

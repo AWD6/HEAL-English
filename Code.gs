@@ -25,8 +25,54 @@ function doPost(e) {
   }
 }
 
-function doGet() {
-  return json_({ ok: true, service: 'HEAL English usage logger' });
+function doGet(e) {
+  const params = (e && e.parameter) || {};
+  const callback = String(params.callback || '');
+  const action = String(params.action || '');
+  try {
+    if (action === 'interpreter-translate') {
+      const source = String(params.q || '').trim();
+      const from = String(params.sl || 'auto');
+      const to = String(params.tl || 'th');
+      if (!source || source.length > 1500) throw new Error('Invalid text');
+      const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&dt=t'
+        + '&sl=' + encodeURIComponent(from) + '&tl=' + encodeURIComponent(to)
+        + '&q=' + encodeURIComponent(source);
+      const response = UrlFetchApp.fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
+        muteHttpExceptions: true
+      });
+      if (response.getResponseCode() < 200 || response.getResponseCode() >= 300) {
+        throw new Error('Translation provider error');
+      }
+      const data = JSON.parse(response.getContentText());
+      const translation = (data[0] || []).map(row => row && row[0] || '').join('').trim();
+      if (!translation) throw new Error('Empty translation response');
+      return jsonpOrJson_({ ok: true, translation: translation }, callback);
+    }
+    if (action === 'interpreter-tts') {
+      const source = String(params.q || '').trim();
+      const to = String(params.tl || 'th');
+      if (!source || source.length > 250) throw new Error('Invalid text');
+      const url = 'https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8'
+        + '&tl=' + encodeURIComponent(to) + '&q=' + encodeURIComponent(source);
+      const response = UrlFetchApp.fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'audio/mpeg' },
+        muteHttpExceptions: true
+      });
+      if (response.getResponseCode() < 200 || response.getResponseCode() >= 300) {
+        throw new Error('Speech provider error');
+      }
+      const bytes = response.getContent();
+      if (!bytes || !bytes.length) throw new Error('Empty speech response');
+      return jsonpOrJson_({ ok: true, audio: Utilities.base64Encode(bytes) }, callback);
+    }
+    // Preserve the previous JSON health response for callers outside the
+    // AI Translator. Only the two explicitly named interpreter actions use JSONP.
+    return json_({ ok: true, service: 'HEAL English usage logger' });
+  } catch (err) {
+    return jsonpOrJson_({ ok: false, error: String(err && err.message || err) }, callback);
+  }
 }
 
 function getOrCreateSheet_(ss, name, headers) {
@@ -59,4 +105,13 @@ function rebuildSummary_(ss, log) {
 
 function json_(value) {
   return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function jsonpOrJson_(value, callback) {
+  if (!callback) return json_(value);
+  if (!/^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(callback)) {
+    return json_({ ok: false, error: 'Invalid callback' });
+  }
+  return ContentService.createTextOutput(callback + '(' + JSON.stringify(value) + ');')
+    .setMimeType(ContentService.MimeType.JAVASCRIPT);
 }

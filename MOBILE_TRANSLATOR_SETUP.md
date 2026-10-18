@@ -1,17 +1,26 @@
-# เปิดใช้ AI Translator บน GitHub Pages และมือถือ
+# ตั้งค่า AI Translator สำหรับ Safari และมือถือ
 
-หน้าเว็บ GitHub Pages ไม่มี server-side proxy ให้ `/translate` หรือ `/google-tts` ดังนั้นการเรียก Google จาก Safari/บางเครือข่ายอาจถูกบล็อกโดย CORS หรือ autoplay policy ได้ ZIP นี้มี Cloudflare Worker ที่ทำ proxy ให้ทั้งข้อความแปลและเสียง
+## ทำครั้งเดียวก่อนใช้งาน
 
-## ตั้งค่า Worker (ครั้งเดียว)
+1. เปิดโปรเจกต์ Google Apps Script ที่ผูกกับชีตบันทึกการใช้งานเดิม แล้วแทนที่ `Code.gs` ด้วยไฟล์ฉบับนี้
+2. ไปที่ **Deploy > Manage deployments > Edit > New version > Deploy** เพื่ออัปเดต Web App เดิม โดยคงผู้ดำเนินการและสิทธิ์เข้าถึงเดิมไว้ URL ใน `script.js` จะใช้ต่อได้
+3. วางไฟล์เว็บ `index.html`, `script.js`, `style.css` และ `translator-config.js` ตามตำแหน่งเดิมใน GitHub แล้ว push ขึ้น GitHub Pages
+4. เปิดเว็บไซต์ผ่าน HTTPS และอนุญาตไมโครโฟน
 
-1. สร้าง Cloudflare Worker ใหม่จาก Dashboard > Workers & Pages.
-2. วางเนื้อหา `translator-worker.js` ใน Worker แล้ว Deploy.
-3. คัดลอก URL ของ Worker (ตัวอย่าง `https://ชื่อ-worker.ชื่อบัญชี.workers.dev`).
-4. เปิด `translator-config.js` และกำหนด `window.HEAL_TRANSLATOR_API_BASE` เป็น URL นั้น โดยไม่มี `/` ปิดท้าย จากนั้น commit/push ไฟล์เว็บขึ้น GitHub Pages.
-5. เปิดหน้าเว็บผ่าน HTTPS บน iPhone/Android และอนุญาต Microphone. แตะ “เริ่มล่าม” ใหม่ทุกครั้งหลัง reload เพื่อให้เบราว์เซอร์อนุญาตเสียงพูดออก.
+Google Apps Script ทำหน้าที่ส่งคำแปลและเสียงกลับแบบ JSONP จึงใช้ได้เมื่อ Safari หรือ Chrome บล็อกการเรียก Google ข้ามโดเมน การบันทึกการใช้งานเดิมผ่าน `doPost` ยังอยู่เหมือนเดิม หากโปรเจกต์กำหนด OAuth scopes เอง ให้เพิ่ม `https://www.googleapis.com/auth/script.external_request` และอนุญาต UrlFetchApp ตอน deploy
 
-Worker ไม่เก็บข้อความและไม่ต้องใช้ API key; ข้อความจะถูกส่งต่อไป Google Translate ตามการทำงานของแอป
+หากติดตั้ง Cloudflare Worker อยู่แล้ว สามารถใส่ URL ของ Worker ใน `translator-config.js` ได้ Worker จะเป็นเส้นทางหลักที่เร็วกว่าและ Apps Script เป็นทางสำรอง
 
-## ไฟล์ที่นำไปใช้
+## iPhone และ iPad
 
-นำไฟล์ที่อยู่ใน ZIP ไปวางทับตาม path เดิมใน repository โดย `translator-worker.js` เป็น source สำหรับ deploy แยกใน Cloudflare (ไม่ต้องวางใน root เพื่อให้ GitHub Pages รัน)
+- เปิดใน Safari โดยตรง ไม่เปิดจากหน้าในแอปหรือไอคอนเว็บที่เพิ่มไว้หน้า Home Screen เพราะบางโหมดปิด Speech Recognition
+- เปิด Siri/Dictation และอนุญาตการรู้จำเสียงในการตั้งค่าอุปกรณ์
+- หากเบราว์เซอร์ไม่เปิด Speech Recognition ระบบจะแสดงช่องรับเสียงสำรอง ให้เลือกภาษาแป้นพิมพ์ตามภาษาที่กำลังฟัง แล้วใช้ไมโครโฟนบนแป้นพิมพ์ ระบบจะแปลหลังจบ Dictation เมื่อเบราว์เซอร์แจ้งว่าพูดจบ หากไม่เริ่มเองให้แตะ **แปลและอ่านออกเสียง**
+
+Chrome บน iOS ใช้ WebKit และอาจปิดบริการ Speech Recognition ของหน้าเว็บ ระบบจึงเตรียมช่องรับเสียงสำรองไว้ ส่วน Android จะใช้การรู้จำเสียงของเบราว์เซอร์เมื่อมีให้บริการ
+
+## ภาษาและการแปล
+
+ล่ามรองรับคู่ภาษาไทยกับอังกฤษ จีนตัวย่อ และเมียนมาร์ เลือกผู้พูดก่อน แล้วกด **สลับภาษาที่ฟังเอง** เมื่อเปลี่ยนฝั่ง ระบบเลือกทิศทางจากอักษรที่ได้ยินและใช้คำแปลที่เตรียมไว้ในคลังประโยคก่อนเรียก Google Translate
+
+การรู้จำเสียงเมียนมาร์ขึ้นกับบริการเสียง/แป้นพิมพ์ที่ติดตั้งบนอุปกรณ์ หากบริการนั้นไม่มีภาษาเมียนมาร์ ยังพิมพ์หรือใช้ Dictation ของอุปกรณ์ได้
