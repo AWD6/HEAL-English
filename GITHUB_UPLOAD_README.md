@@ -1,7 +1,7 @@
-# HEAL English — v8 mobile AI Translator update
+# HEAL English — v9 mobile AI Translator update
 
-Upload the contents of this folder to the repository root. `index.html` must be at the root.
+Upload the contents of this folder to the repository root. `index.html` must be at the root. Keep all app files, including `assets/audio/my/` and `vendor/`.
 
-This package includes mobile fixes for AI Translator speech recognition, translation, and speech playback. Google Translate and Google TTS requests now allow up to 9 seconds for a slow mobile connection instead of failing after 1.4 seconds (translation) or 3.2 seconds (speech). Keep `assets/audio/my/` and `vendor/` intact.
+This version configures the verified public Google Apps Script `/exec` endpoint for AI Translator translation and Google TTS, including when Safari or mobile Chrome blocks cross-origin `fetch`. Translation and audio requests use JSONP. The HTML asset versions were bumped so GitHub Pages fetches the updated configuration instead of a cached version.
 
-For Google Apps Script translation and speech, deploy `Code.gs` as a Web App and set its public `/exec` URL in `translator-config.js`. The `/dev` test URL is editor-only. GitHub Pages must be served over HTTPS for microphone access.
+The endpoint was checked for Thai ↔ English, Chinese, and Burmese translation, and TTS audio responses for Thai, English, Chinese, and Burmese. GitHub Pages must be served over HTTPS and the browser must be allowed to use the microphone. Speech recognition availability still depends on the browser and device.
