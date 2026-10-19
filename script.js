@@ -2608,7 +2608,10 @@ function startInterpreterRecognition() {
           if (sessionToken===interpreterSessionToken && interpreterRecognition===rec) {
             try { rec.stop(); } catch(e) {}
           }
-        },finalSegments.size ? 90 : 380);
+        // Web Speech may emit a "final" result at a clause boundary while
+        // the speaker is still talking. Keep listening through a natural
+        // pause so the next result can complete the sentence before we stop.
+        },finalSegments.size ? 1250 : 1500);
       }
     };
     rec.onerror = event => {
@@ -2904,26 +2907,33 @@ async function speakInterpreterGoogleChunk(text, lang, shouldContinue=()=>true) 
 function speakInterpreterNativeChunk(text, lang, locale, voice, shouldContinue=()=>true) {
   return new Promise(resolve => {
     const synth=window.speechSynthesis;
-    let finished=false, watchdog=null;
+    let finished=false, watchdog=null, startTimer=null;
     const done=ok=>{
       if (finished) return;
       finished=true;
       if (watchdog) clearTimeout(watchdog);
+      if (startTimer) clearTimeout(startTimer);
       resolve(!!ok);
     };
     const fallback=()=>{
       if (finished) return;
       finished=true;
       if (watchdog) clearTimeout(watchdog);
+      if (startTimer) clearTimeout(startTimer);
       if (!shouldContinue()) { resolve(false); return; }
       try { synth.cancel(); } catch(e) {}
       speakInterpreterGoogleChunk(text,lang,shouldContinue).then(resolve,()=>resolve(false));
     };
     const utterance=new SpeechSynthesisUtterance(text);
     utterance.lang=locale; utterance.rate=0.9; utterance.voice=voice;
+    utterance.onstart=()=>{
+      if (startTimer) { clearTimeout(startTimer); startTimer=null; }
+      watchdog=setTimeout(fallback,interpreterSpeechWatchdog(text));
+    };
     utterance.onend=()=>done(true);
     utterance.onerror=fallback;
-    watchdog=setTimeout(fallback,interpreterSpeechWatchdog(text));
+    // Do not wait several seconds for a device voice that never starts.
+    startTimer=setTimeout(fallback,1100);
     try { synth.resume?.(); synth.speak(utterance); } catch(e) { fallback(); }
   });
 }
@@ -2956,20 +2966,14 @@ async function interpreterSpeak(text, lang, allowWhenStopped=false) {
   for (const chunk of chunks) {
     if (!shouldContinue()) return false;
     let played=false;
-    // Thai and Burmese voices are inconsistently available in mobile browsers.
-    // Try the online voice first so a silent/missing device voice cannot mask speech.
-    const remoteFirst=lang==='th' || lang==='my';
-    if (!remoteFirst && synth) {
+    // Start a matching on-device voice first for low-latency playback. If it
+    // is unavailable or fails to start promptly, fall back to Google TTS.
+    if (synth) {
       const locale=speechLocale(lang);
       const voice=await getInterpreterVoice(synth,lang,locale);
       if (voice && shouldContinue()) played=await speakInterpreterNativeChunk(chunk,lang,locale,voice,shouldContinue);
     }
     if (!played && shouldContinue()) played=await speakInterpreterGoogleChunk(chunk,lang,shouldContinue);
-    if (!played && remoteFirst && synth && shouldContinue()) {
-      const locale=speechLocale(lang);
-      const voice=await getInterpreterVoice(synth,lang,locale);
-      if (voice && shouldContinue()) played=await speakInterpreterNativeChunk(chunk,lang,locale,voice,shouldContinue);
-    }
     if (!shouldContinue()) return false;
     if (!played) allPlayed=false;
   }

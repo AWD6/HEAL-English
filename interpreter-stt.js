@@ -40,7 +40,9 @@ async function startMyanmarCloudRecognition(){
     const C=window.AudioContext||window.webkitAudioContext;if(!C)throw new Error('Web Audio unavailable');let ctx;try{ctx=new C({sampleRate:16000})}catch(e){ctx=new C()};if(ctx.state==='suspended')await ctx.resume();
     const source=ctx.createMediaStreamSource(stream),processor=ctx.createScriptProcessor(4096,1,1),gain=ctx.createGain();gain.gain.value=0;source.connect(processor);processor.connect(gain);gain.connect(ctx.destination);
     const c={active:true,stream,ctx,source,processor,gain,rate:ctx.sampleRate,pre:[],frames:[],speaking:false,silence:0,sending:false,token};interpreterMyanmarCapture=c;
-    status.textContent='กำลังฟังภาษาพม่า… พูดทีละประโยค';const threshold=.012,silenceLimit=ctx.sampleRate*.48,maxLength=ctx.sampleRate*12;
+    // Myanmar audio is captured locally, so wait for a full sentence pause
+    // before sending it to STT instead of cutting at a short hesitation.
+    status.textContent='กำลังฟังภาษาพม่า… พูดทีละประโยค';const threshold=.012,silenceLimit=ctx.sampleRate*.95,maxLength=ctx.sampleRate*18;
     const finish=async()=>{
       if(!c.active||c.sending||!c.frames.length)return;c.active=false;c.sending=true;const total=c.frames.reduce((n,f)=>n+f.length,0)-c.silence;if(total<ctx.sampleRate*.22){stopMyanmarCloudRecognition();if(interpreterActive&&token===interpreterSessionToken)scheduleInterpreterRecognition(120);return;}
       const samples=new Float32Array(total);let pos=0;for(const f of c.frames){const n=Math.min(f.length,total-pos);if(n<=0)break;samples.set(f.subarray(0,n),pos);pos+=n;}const audio=encodeSpeechWav16k(samples,c.rate);stopMyanmarCloudRecognition();
