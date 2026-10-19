@@ -418,10 +418,8 @@ let interpreterRecognitionResultTimer = null;
 let interpreterLocaleFallbackIndex = 0;
 let interpreterRecognitionStartRetries = 0;
 let interpreterRecognitionQuietTurns = 0;
-let interpreterFallbackMode = false;
 let interpreterLastSourceLang = 'th';
 let interpreterLastTargetLang = 'en';
-let interpreterDictationTimer = null;
 const myTranslationTasks = new Map();
 const translationMemory = new Map();
 const translationTasks = new Map();
@@ -1083,11 +1081,10 @@ function armInterpreterRecognitionResultWatchdog(rec, sessionToken) {
   interpreterRecognitionResultTimer=setTimeout(()=>{
     interpreterRecognitionResultTimer=null;
     if (sessionToken===interpreterSessionToken && interpreterRecognition===rec && interpreterActive && !interpreterBusy) {
-      activateInterpreterFallback(`เบราว์เซอร์ไม่ส่งผลการฟัง ${languageLabel(interpreterNextLang)} · ใช้ไมโครโฟนบนแป้นพิมพ์เพื่อพูด แล้วระบบจะแปลต่อ`);
+      document.getElementById('interpreterStatus').textContent=`กำลังฟัง ${languageLabel(interpreterNextLang)}… พูดใกล้ไมโครโฟนได้เลย`;
     }
   },20000);
-}
-function translateInterpreterWithFastFallback(source,sl,tl,configuredApi) {
+}function translateInterpreterWithFastFallback(source,sl,tl,configuredApi) {
   const fastRoutes=[];
   // Mobile networks often take longer than 1.4 seconds for a cold Google
   // request. The old short timeout made Safari/Chrome report a failed
@@ -1120,7 +1117,7 @@ function translateInterpreterWithFastFallback(source,sl,tl,configuredApi) {
         else { fallbackFinished=true; lastError=new Error(result?.error || 'Apps Script translation proxy unavailable'); if (failures===fastRoutes.length) fail(lastError); }
       }).catch(error=>{fallbackFinished=true;lastError=error;if(failures===fastRoutes.length)fail(error);});
     };
-    fallbackTimer=setTimeout(startAppsScript,350);
+    startAppsScript();
     fastRoutes.forEach(route=>route.then(succeed).catch(()=>{
       failures++;
       lastError=new Error('Google Translate request failed');
@@ -2477,7 +2474,6 @@ function bestRecognitionTranscript(result, expectedLang) {
 }
 function patientLanguage() { return document.getElementById('interpreterLang').value; }
 function onInterpreterLanguageChange() {
-  updateInterpreterDictationLanguage();
   if (!interpreterActive) {
     const startsWithPatient=document.getElementById('interpreterFirstTurn').value==='patient';
     document.getElementById('interpreterStatus').textContent=startsWithPatient
@@ -2503,73 +2499,26 @@ function onInterpreterVisibilityChange() {
     if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
     if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
     clearInterpreterRecognitionWatchdogs();
+    stopMyanmarCloudRecognition();
     const old=interpreterRecognition;
     interpreterRecognition=null;
     try { if(old) old.onend=null; if(old) old.abort(); } catch(e) {}
     return;
   }
-  if (!interpreterBusy && !interpreterFallbackMode && !interpreterRecognition) scheduleInterpreterRecognition(100);
+  if (!interpreterBusy && !interpreterRecognition) scheduleInterpreterRecognition(100);
 }
 document.addEventListener('visibilitychange',onInterpreterVisibilityChange);
-function updateInterpreterDictationLanguage() {
-  const label=document.getElementById('interpreterDictationLanguage');
-  const input=document.getElementById('interpreterDictationText');
-  if (label) label.textContent=languageLabel(interpreterNextLang);
-  if (input) input.lang=speechLocale(interpreterNextLang);
-}
-function activateInterpreterFallback(message='') {
+function reportInterpreterRecognitionIssue(message, retryDelay=0) {
   if (!interpreterActive) return;
-  interpreterFallbackMode=true;
   clearInterpreterRecognitionWatchdogs();
   if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
-  if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
   const old=interpreterRecognition;
   interpreterRecognition=null;
   if (old) { old.onend=null; try { old.abort(); } catch(e) {} }
-  const panel=document.getElementById('interpreterDictationFallback');
-  if (panel) panel.hidden=false;
-  updateInterpreterDictationLanguage();
-  document.getElementById('interpreterStatus').textContent=message || `รับเสียงอัตโนมัติไม่ได้ · ใช้ไมโครโฟนบนแป้นพิมพ์เพื่อพูด ${languageLabel(interpreterNextLang)} แล้วแปลต่อได้`;
+  document.getElementById('interpreterStatus').textContent=message;
   updateInterpreterTurn();
-  setTimeout(()=>{
-    const input=document.getElementById('interpreterDictationText');
-    if (interpreterActive && interpreterFallbackMode && input) input.focus();
-  },120);
+  if (retryDelay>0) scheduleInterpreterRecognition(retryDelay);
 }
-function submitInterpreterDictation() {
-  const input=document.getElementById('interpreterDictationText');
-  const text=String(input?.value || '').trim();
-  if (!text) {
-    document.getElementById('interpreterStatus').textContent=`กรุณาพูดหรือพิมพ์ ${languageLabel(interpreterNextLang)} ก่อนแปล`;
-    input?.focus();
-    return;
-  }
-  if (!interpreterActive) return;
-  if (interpreterBusy) {
-    document.getElementById('interpreterStatus').textContent='กำลังแปลหรืออ่านเสียงอยู่ กรุณารอสักครู่';
-    return;
-  }
-  if (interpreterDictationTimer) { clearTimeout(interpreterDictationTimer); interpreterDictationTimer=null; }
-  input.value='';
-  return handleInterpreterUtterance(text,interpreterNextLang);
-}
-function scheduleInterpreterDictationSubmit(delay=1050) {
-  if (interpreterDictationTimer) clearTimeout(interpreterDictationTimer);
-  interpreterDictationTimer=setTimeout(()=>{
-    interpreterDictationTimer=null;
-    if (interpreterFallbackMode && !interpreterBusy) submitInterpreterDictation();
-  },delay);
-}
-document.getElementById('interpreterDictationText')?.addEventListener('input',event=>{
-  if (!interpreterFallbackMode || event.isComposing) return;
-  const inputType=String(event.inputType || '');
-  const delay=/dictation|speech/i.test(inputType) ? 350 : 1050;
-  scheduleInterpreterDictationSubmit(delay);
-});
-document.getElementById('interpreterDictationText')?.addEventListener('compositionend',()=>{
-  if (!interpreterFallbackMode) return;
-  scheduleInterpreterDictationSubmit(450);
-});
 function updateInterpreterTurn() {
   const source = interpreterNextLang;
   document.getElementById('interpreterTurn').textContent = interpreterActive ? `กำลังฟัง: ${languageLabel(source)} · อีกฝั่งจะได้ยินคำแปล` : 'พร้อมเริ่มสนทนา';
@@ -2587,7 +2536,6 @@ function startInterpreter() {
   clearInterpreterRecognitionWatchdogs();
   interpreterSessionToken++;
   interpreterActive = true; interpreterBusy = false;
-  interpreterFallbackMode = !SR;
   interpreterNextLang = document.getElementById('interpreterFirstTurn').value === 'patient' ? patientLanguage() : 'th';
   interpreterLocaleFallbackIndex = 0;
   interpreterRecognitionStartRetries = 0;
@@ -2597,15 +2545,14 @@ function startInterpreter() {
   document.getElementById('interpreterStartBtn').disabled = true;
   document.getElementById('interpreterStopBtn').disabled = false;
   document.getElementById('interpreterSwapBtn').disabled = false;
-  document.getElementById('interpreterDictationFallback').hidden = !!SR;
   document.getElementById('interpreterSourceText').textContent = '—';
   document.getElementById('interpreterTranslatedText').textContent = '—';
-  updateInterpreterDictationLanguage();
-  document.getElementById('interpreterStatus').textContent = SR
+  const cloudMyanmar=interpreterNextLang==='my';
+  document.getElementById('interpreterStatus').textContent = (SR || cloudMyanmar)
     ? `เริ่ม AI Translator · กำลังฟัง ${languageLabel(interpreterNextLang)} · กรุณาพูดทีละคน`
-    : `เบราว์เซอร์นี้ไม่มีบริการรับเสียงอัตโนมัติ · ใช้ไมโครโฟนบนแป้นพิมพ์เพื่อพูด ${languageLabel(interpreterNextLang)}`;
+    : 'เบราว์เซอร์นี้ไม่มี Speech Recognition; ไม่สามารถรับเสียงอัตโนมัติได้';
   updateInterpreterTurn();
-  if (SR) startInterpreterRecognition(); else activateInterpreterFallback();
+  if (SR || cloudMyanmar) startInterpreterRecognition();
 }
 function scheduleInterpreterRecognition(delay=120) {
   if (interpreterRestartTimer) clearTimeout(interpreterRestartTimer);
@@ -2616,9 +2563,14 @@ function scheduleInterpreterRecognition(delay=120) {
 }
 function startInterpreterRecognition() {
   if (!interpreterActive || interpreterBusy || document.hidden) return;
+  if (interpreterNextLang==='my') { startMyanmarCloudRecognition(); return; }
+  stopMyanmarCloudRecognition();
   if (interpreterRecognition) return;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { activateInterpreterFallback(); return; }
+  if (!SR) {
+    document.getElementById('interpreterStatus').textContent='เบราว์เซอร์นี้ไม่มี Speech Recognition; เปิด AI Translator ในเบราว์เซอร์ที่รองรับการรู้จำเสียง';
+    return;
+  }
   clearInterpreterRecognitionWatchdogs();
   let rec=null;
   const sessionToken=interpreterSessionToken;
@@ -2656,43 +2608,39 @@ function startInterpreterRecognition() {
           if (sessionToken===interpreterSessionToken && interpreterRecognition===rec) {
             try { rec.stop(); } catch(e) {}
           }
-        // Some mobile speech services only publish interim results. Treat a
-        // short pause as end-of-utterance for every supported language.
-        },finalSegments.size ? 160 : 700);
+        },finalSegments.size ? 90 : 380);
       }
     };
     rec.onerror = event => {
       if (sessionToken!==interpreterSessionToken || interpreterRecognition!==rec) return;
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        activateInterpreterFallback(event.error === 'service-not-allowed'
-          ? `เบราว์เซอร์ปิดบริการรับเสียง · ใช้ไมโครโฟนบนแป้นพิมพ์เพื่อพูด ${languageLabel(interpreterNextLang)}`
-          : 'ไม่ได้รับสิทธิ์ไมโครโฟนของเบราว์เซอร์ · อนุญาตไมโครโฟนหรือใช้ไมโครโฟนบนแป้นพิมพ์');
-      }
-      else if (event.error === 'network' || event.error === 'audio-capture') {
-        activateInterpreterFallback(`รับเสียงจากเบราว์เซอร์ไม่ได้ (${event.error}) · ใช้ไมโครโฟนบนแป้นพิมพ์แล้วแปลต่อได้`);
-      }
-      else if (event.error === 'language-not-supported') {
+        reportInterpreterRecognitionIssue(event.error === 'service-not-allowed'
+          ? 'เบราว์เซอร์หรือบริการรู้จำเสียงปิดการใช้งานสำหรับภาษานี้'
+          : 'ไม่ได้รับสิทธิ์ไมโครโฟน โปรดอนุญาตไมโครโฟนในการตั้งค่าเบราว์เซอร์');
+      } else if (event.error === 'audio-capture') {
+        reportInterpreterRecognitionIssue('เปิดไมโครโฟนไม่ได้ โปรดตรวจสิทธิ์และการเชื่อมต่อไมโครโฟน');
+      } else if (event.error === 'network') {
+        reportInterpreterRecognitionIssue('บริการรู้จำเสียงขาดการเชื่อมต่อ กำลังเชื่อมใหม่…',900);
+      } else if (event.error === 'language-not-supported') {
         clearInterpreterRecognitionWatchdogs();
         if (interpreterLocaleFallbackIndex < localeOptions.length-1) {
           interpreterLocaleFallbackIndex++;
-          document.getElementById('interpreterStatus').textContent=`ลองรูปแบบภาษา ${localeOptions[interpreterLocaleFallbackIndex]} สำหรับ ${languageLabel(interpreterNextLang)}…`;
           if (interpreterRecognition===rec) interpreterRecognition=null;
           rec.onend=null;
           try { rec.abort(); } catch(e) {}
-          scheduleInterpreterRecognition(260);
+          document.getElementById('interpreterStatus').textContent=`ลองรูปแบบภาษา ${localeOptions[interpreterLocaleFallbackIndex]} สำหรับ ${languageLabel(interpreterNextLang)}…`;
+          scheduleInterpreterRecognition(120);
         } else {
-          activateInterpreterFallback(`เบราว์เซอร์ไม่รองรับการฟัง ${languageLabel(interpreterNextLang)} · ใช้ไมโครโฟนบนแป้นพิมพ์ของอุปกรณ์แทน`);
+          reportInterpreterRecognitionIssue(`บริการ Speech Recognition ของเบราว์เซอร์ไม่รองรับ ${languageLabel(interpreterNextLang)}`);
         }
+      } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        reportInterpreterRecognitionIssue(`เกิดปัญหาการรับเสียง (${event.error}) กำลังลองใหม่…`,700);
       }
-      else if (event.error !== 'no-speech' && event.error !== 'aborted') document.getElementById('interpreterStatus').textContent = `มีปัญหาการรับเสียง (${event.error}) กำลังลองใหม่…`;
     };
     rec.onend = () => {
-      // A recognizer from the previous language turn must not clear the
-      // watchdogs belonging to the current one.
       if (sessionToken!==interpreterSessionToken) return;
       clearInterpreterRecognitionWatchdogs();
       if (interpreterRecognition===rec) interpreterRecognition=null;
-      if (interpreterFallbackMode) return;
       if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
       const completeText=Array.from(finalSegments.entries()).sort((a,b)=>a[0]-b[0]).map(([,part])=>part).join(' ').trim();
       const latestText=Array.from(new Map([...finalSegments,...interimSegments]).entries()).sort((a,b)=>a[0]-b[0]).map(([,part])=>part).join(' ').trim();
@@ -2705,16 +2653,16 @@ function startInterpreterRecognition() {
       if (interpreterActive && !interpreterBusy) {
         interpreterRecognitionQuietTurns++;
         if (interpreterRecognitionQuietTurns>=4) {
-          activateInterpreterFallback(`ยังรับประโยค ${languageLabel(interpreterNextLang)} ไม่ได้ · ใช้ไมโครโฟนบนแป้นพิมพ์เพื่อพูด แล้วระบบจะแปลต่อ`);
-          return;
+          document.getElementById('interpreterStatus').textContent=`ยังไม่ได้ยิน ${languageLabel(interpreterNextLang)} · พูดใกล้ไมโครโฟนแล้วรอสักครู่`;
+          interpreterRecognitionQuietTurns=0;
         }
-        scheduleInterpreterRecognition(140);
+        scheduleInterpreterRecognition(120);
       }
     };
     interpreterRecognitionStartTimer=setTimeout(()=>{
       interpreterRecognitionStartTimer=null;
       if (sessionToken===interpreterSessionToken && interpreterRecognition===rec && interpreterActive && !interpreterBusy) {
-        activateInterpreterFallback(`เบราว์เซอร์ไม่เริ่มฟัง ${languageLabel(interpreterNextLang)} · ใช้ไมโครโฟนบนแป้นพิมพ์เพื่อพูด แล้วระบบจะแปลต่อ`);
+        reportInterpreterRecognitionIssue(`เบราว์เซอร์เริ่มฟัง ${languageLabel(interpreterNextLang)} ไม่สำเร็จ`,700);
       }
     },8000);
     rec.start();
@@ -2723,24 +2671,20 @@ function startInterpreterRecognition() {
     if (interpreterRecognition===rec) interpreterRecognition=null;
     if (!interpreterActive) return;
     if (err && ['NotAllowedError','SecurityError'].includes(err.name)) {
-      activateInterpreterFallback('ไม่ได้รับสิทธิ์ไมโครโฟนของเบราว์เซอร์ · อนุญาตไมโครโฟนหรือใช้ไมโครโฟนบนแป้นพิมพ์');
+      reportInterpreterRecognitionIssue('ไม่ได้รับสิทธิ์ไมโครโฟน โปรดอนุญาตไมโครโฟนในการตั้งค่าเบราว์เซอร์');
     } else if (err && err.name==='InvalidStateError') {
       interpreterRecognitionStartRetries++;
       if (interpreterRecognitionStartRetries<=3) {
         document.getElementById('interpreterStatus').textContent=`กำลังเริ่มฟัง ${languageLabel(interpreterNextLang)} อีกครั้ง…`;
-        scheduleInterpreterRecognition(420);
-      } else {
-        activateInterpreterFallback(`เบราว์เซอร์เริ่มฟัง ${languageLabel(interpreterNextLang)} ไม่สำเร็จ · ใช้ไมโครโฟนบนแป้นพิมพ์แทน`);
-      }
+        scheduleInterpreterRecognition(250);
+      } else reportInterpreterRecognitionIssue('เริ่มบริการรู้จำเสียงไม่สำเร็จ ลองหยุดแล้วเริ่ม AI Translator ใหม่');
     } else if (err && ['NotSupportedError','TypeError'].includes(err.name)) {
-      activateInterpreterFallback(`เบราว์เซอร์ไม่เปิดบริการรับเสียงอัตโนมัติ · ใช้ไมโครโฟนบนแป้นพิมพ์เพื่อพูด ${languageLabel(interpreterNextLang)}`);
+      reportInterpreterRecognitionIssue(`เบราว์เซอร์ไม่รองรับการรู้จำเสียงสำหรับ ${languageLabel(interpreterNextLang)}`);
     } else {
-      document.getElementById('interpreterStatus').textContent = 'กำลังเชื่อมต่อไมโครโฟนใหม่…';
-      scheduleInterpreterRecognition(700);
+      reportInterpreterRecognitionIssue('กำลังเชื่อมต่อไมโครโฟนใหม่…',700);
     }
   }
-}
-async function handleInterpreterUtterance(text, sourceLang) {
+}async function handleInterpreterUtterance(text, sourceLang) {
   if (!interpreterActive || interpreterBusy) return;
   const sessionToken=interpreterSessionToken;
   const expectedTurnLang=sourceLang;
@@ -2789,10 +2733,7 @@ async function handleInterpreterUtterance(text, sourceLang) {
   } finally {
     if (sessionToken === interpreterSessionToken) {
       interpreterBusy = false; updateInterpreterTurn();
-      if (interpreterActive && interpreterFallbackMode) {
-        const input=document.getElementById('interpreterDictationText');
-        if (input) setTimeout(()=>input.focus(),100);
-      } else if (interpreterActive) scheduleInterpreterRecognition(100);
+      if (interpreterActive) scheduleInterpreterRecognition(100);
     }
   }
 }
@@ -2829,17 +2770,9 @@ function interpreterSpeechWatchdog(text) {
 }
 async function playInterpreterTtsMedia(text,lang,shouldContinue=()=>true) {
   const query='ie=UTF-8&tl='+encodeURIComponent(lang)+'&q='+encodeURIComponent(text);
-  const sources=[
-    'https://translate.googleapis.com/translate_tts?client=gtx&'+query,
-    'https://translate.google.com/translate_tts?client=tw-ob&'+query
-  ];
-  for (const source of sources) {
-    if (!shouldContinue()) return false;
-    if (await playInterpreterAudioElement(source,text,shouldContinue)) return true;
-  }
-  return false;
-}
-function playInterpreterAudioElement(source,text,shouldContinue=()=>true) {
+  const source='https://translate.googleapis.com/translate_tts?client=gtx&'+query;
+  return shouldContinue() ? playInterpreterAudioElement(source,text,shouldContinue) : false;
+}function playInterpreterAudioElement(source,text,shouldContinue=()=>true) {
   if (!source || !shouldContinue()) return Promise.resolve(false);
   const audio=interpreterPrimedAudio || new Audio();
   const previous=currentGoogleAudio;
@@ -2891,7 +2824,7 @@ function playInterpreterAudioElement(source,text,shouldContinue=()=>true) {
     audio.addEventListener('error',onError,{once:true});
     // Move to the proxied Web Audio route quickly if a mobile media element
     // cannot start the direct Google Translate audio.
-    watchdog=setTimeout(()=>finish(false),Math.max(2200,Math.min(4200,String(text).length*45+1500)));
+    watchdog=setTimeout(()=>finish(false),Math.max(1500,Math.min(2600,String(text).length*20+1100)));
     try { audio.load(); } catch(e) {}
     if (audio.readyState>=3) start();
     else {
@@ -3062,7 +2995,6 @@ function restartInterpreterRecognitionForNewTurn() {
   if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
   if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
   clearInterpreterRecognitionWatchdogs();
-  // Invalidate every callback belonging to the previous language session.
   interpreterSessionToken++;
   interpreterLocaleFallbackIndex=0;
   interpreterRecognitionStartRetries=0;
@@ -3072,16 +3004,7 @@ function restartInterpreterRecognitionForNewTurn() {
   try { if(old) old.onend=null; if(old) old.abort(); } catch(e) {}
   interpreterBusy=false;
   updateInterpreterTurn();
-  updateInterpreterDictationLanguage();
-  if (interpreterFallbackMode) {
-    document.getElementById('interpreterStatus').textContent=`กำลังรับ ${languageLabel(interpreterNextLang)} ผ่านไมโครโฟนบนแป้นพิมพ์`;
-    const input=document.getElementById('interpreterDictationText');
-    if (input) input.value='';
-    setTimeout(()=>input?.focus(),100);
-    return;
-  }
-  // Safari/Chrome both need a short stop/start gap after abort().
-  scheduleInterpreterRecognition(520);
+  scheduleInterpreterRecognition(250);
 }
 function switchInterpreterTurn() {
   if (!interpreterActive || interpreterBusy) return;
@@ -3091,12 +3014,9 @@ function switchInterpreterTurn() {
 }
 function stopInterpreter() {
   interpreterSessionToken++;
-  interpreterActive = false; interpreterBusy = false;
-  interpreterFallbackMode=false;
-  const dictationPanel=document.getElementById('interpreterDictationFallback');
-  if (dictationPanel) dictationPanel.hidden=true;
-  if (interpreterDictationTimer) { clearTimeout(interpreterDictationTimer); interpreterDictationTimer=null; }
-  if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
+ 
+  stopMyanmarCloudRecognition(); interpreterActive = false; interpreterBusy = false;
+if (interpreterRestartTimer) { clearTimeout(interpreterRestartTimer); interpreterRestartTimer=null; }
   if (interpreterFinalizeTimer) { clearTimeout(interpreterFinalizeTimer); interpreterFinalizeTimer=null; }
   clearInterpreterRecognitionWatchdogs();
   const oldRecognition=interpreterRecognition;
@@ -3132,3 +3052,14 @@ function ea(s) {
 }
 
 window.addEventListener('DOMContentLoaded', init);
+
+
+
+
+
+
+
+
+
+
+

@@ -28,3 +28,12 @@ URL Apps Script Web App ที่เจ้าของให้ไว้ตั�
 - ห้ามใช้คำแปลอัตโนมัตินี้แทนล่ามที่ผ่านการรับรองในเรื่องวินิจฉัย ยา ขนาดยา การแพ้ยา การยินยอม หรือคำสั่งรักษา ควรตรวจทานก่อนใช้งานจริง
 - หลีกเลี่ยงการพิมพ์ชื่อผู้ป่วย HN อาการ หรือข้อมูลสุขภาพที่ระบุตัวบุคคลได้ ทั้งในตัวแปลและข้อมูล Google Sheets
 - Google Sheets รับเฉพาะ event id, ห้อง, วัน/เวลา และจำนวน 1 ไม่ส่งข้อความแปลหรือข้อมูลผู้ป่วย อย่างไรก็ตาม URL Apps Script อยู่ใน JavaScript ฝั่งเว็บ จึงไม่ใช่กลไกยืนยันตัวตนหรือป้องกัน event ปลอม
+
+## v10 — AI Translator latency and Burmese speech
+
+- Start the Apps Script translation request in parallel with the direct Google Translate request, without the previous 350 ms wait.
+- Shorten the interim end-of-speech pause so translation and speech begin sooner after the speaker pauses.
+- Remove the AI Translator keyboard/dictation fallback panel and its behavior.
+- Route Burmese listening through Google Cloud Speech-to-Text (`my-MM`) using a short-phrase PCM/WAV capture. The browser microphone stays active only during Burmese listening; audio is sent to Apps Script and Google Cloud Speech-to-Text.
+- Requires enabling Cloud Speech-to-Text API and billing, adding `HEAL_SPEECH_API_KEY` to Apps Script Script Properties, and deploying the package's updated `Code.gs`. Setup is in [SPEECH_TO_TEXT_SETUP.md](SPEECH_TO_TEXT_SETUP.md).
+- This cloud speech path cannot be live-verified before the user's Google Cloud API key is configured and the Apps Script deployment is updated. Translation/TTS endpoint checks remain separate.
